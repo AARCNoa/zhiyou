@@ -1,0 +1,31 @@
+知友（zhiyou）
+Copyright (C) 2026 AARCNoa
+
+本仓库是 wcx 的二次开发（forked / modified version）。
+
+## 上游项目
+
+| 项目 | 地址 | 版权 |
+|---|---|---|
+| wcx | https://github.com/Johnny520/wcx/ | Johnny520 及其贡献者 |
+| WeKit | https://github.com/Ujhhgtg/WeKit | Ujhhgtg 及其贡献者 |
+
+wcx 自身也是 WeKit 的二次开发，所以完整的来源链是 WeKit → wcx → 本仓库。
+
+## 许可证
+
+GNU General Public License v3.0，全文见 `LICENSE`。本仓库与其上游同为 GPL-3.0，
+分发时不得附加额外限制；修改后的源码同样以 GPL-3.0 提供。
+
+## 本仓库相对上游 wcx 的修改（2026-11 起）
+
+- 包名由 `com.Johnny.wcx` 改为 `com.AARCNoa.zhiyou`，模块显示名改为「知友」
+- 重写 AI 好友档案：初始化、切片审查、智能建议、自动回复、识图
+- 新增群聊总结：定时调度、首页入口、摘要历史
+- 删除脚本子系统、Frida 相关代码及部分上游功能
+- 正式包使用 R8 压缩发布
+
+## 第三方代码
+
+部分 UI 动效代码来自 InstallerX Revived 与 KernelSU 的贡献者，版权声明保留在
+对应源文件头部，未做改动。

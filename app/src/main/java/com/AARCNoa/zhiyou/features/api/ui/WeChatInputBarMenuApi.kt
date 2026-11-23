@@ -1,0 +1,180 @@
+package com.AARCNoa.zhiyou.features.api.ui
+
+import android.content.Context
+import android.view.View
+import android.widget.Button as AndroidButton
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.composables.icons.materialsymbols.MaterialSymbols
+import com.composables.icons.materialsymbols.outlined.Block
+import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
+import dev.ujhhgtg.reflekt.reflekt
+import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
+
+import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
+import com.AARCNoa.zhiyou.features.core.ApiFeature
+import com.AARCNoa.zhiyou.features.core.Feature
+
+import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
+import com.AARCNoa.zhiyou.ui.content.Button
+import com.AARCNoa.zhiyou.ui.content.m3.BaseWidget
+import com.AARCNoa.zhiyou.ui.content.m3.LocalSegmentedItemShape
+import com.AARCNoa.zhiyou.ui.content.m3.lazySegmentedItems
+import com.AARCNoa.zhiyou.ui.utils.findViewByChildIndexes
+import com.AARCNoa.zhiyou.ui.utils.findViewWhich
+import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
+import com.AARCNoa.zhiyou.utils.WeLogger
+
+@Feature(
+    name = "聊天输入栏增强 API",
+    categories = ["API"],
+    description = "为聊天输入栏长按菜单提供扩展功能注册接口"
+)
+object WeChatInputBarMenuApi : ApiFeature(), IResolveDex {
+
+    fun interface IActionItemsProvider {
+        fun getActionItems(): List<ActionItem>
+    }
+
+    data class ActionItem(
+        val id: String,
+        val icon: ImageVector,
+        val label: String,
+        val isSupported: (Context, ChatFooter) -> Boolean = { _, _ -> true },
+        val onClick: (Context, ChatFooter) -> Unit,
+        val onLongClick: ((Context, ChatFooter) -> Unit)? = null
+    )
+
+    private const val TAG = "WeChatInputBarMenuApi"
+    private val providers = ProviderRegistry<IActionItemsProvider>()
+
+    /** 是否至少有一个功能注册了菜单项 —— 长按入口据此决定要不要弹菜单。 */
+    val hasProviders: Boolean
+        get() = !providers.isEmpty()
+
+    fun addProvider(provider: IActionItemsProvider) {
+        providers.register(provider)
+    }
+
+    fun removeProvider(provider: IActionItemsProvider) {
+        providers.unregister(provider)
+    }
+
+    val methodSendMessage by dexMethod {
+        searchPackages("com.tencent.mm.pluginsdk.ui.chat")
+        matcher {
+            usingEqStrings("MicroMsg.ChatFooter", "send msg onClick")
+        }
+    }
+
+    /**
+     * 在 ChatFooter 内定位原生发送按钮 (第 0 个子视图中文本为 "发送"/"send" 的 Button)。
+     */
+    fun findSendButton(chatFooter: ChatFooter): AndroidButton =
+        chatFooter.findViewByChildIndexes<View>(0)!!
+            .findViewWhich<View> { view ->
+                view.javaClass.name == "android.widget.Button" && run {
+                    val text = (view as AndroidButton).text?.toString()?.trim() ?: ""
+                    text == "发送" || text.equals("send", ignoreCase = true)
+                }
+            }!! as AndroidButton
+
+    /**
+     * 模拟用户点击原生发送按钮: 取发送按钮上的 OnClickListener
+     * (View 并不把监听器存为自身字段, 而是嵌在 View.ListenerInfo 里:
+     * `mListenerInfo.mOnClickListener`), 直接调用其 onClick(View) 处理器
+     * ([methodSendMessage]), 即用户点击发送键时实际执行的路径,
+     * 保留引用、@ 等全部原生能力。
+     */
+    fun performSend(chatFooter: ChatFooter) {
+        val sendBtn = findSendButton(chatFooter)
+        val listenerInfo = sendBtn.reflekt().firstField {
+            name = "mListenerInfo"
+            superclass()
+        }.get()!!
+        val sendListener = listenerInfo.reflekt().firstField { name = "mOnClickListener" }.get()!!
+
+        methodSendMessage.method.invoke(sendListener, sendBtn)
+    }
+
+    fun showMenu(context: Context, chatFooter: ChatFooter) {
+        val applicableItems = providers.snapshot()
+            .flatMap { it.getActionItems() }
+            .filter { it.isSupported(context, chatFooter) }
+
+        showComposeDialog(context) {
+            AlertDialogContent(
+                title = { Text("聊天功能") },
+                text = {
+                    LazyColumn(Modifier.fillMaxWidth()) {
+                        if (applicableItems.isEmpty()) {
+                            item(key = "no_actions_placeholder") {
+                                BaseWidget(
+                                    icon = MaterialSymbols.Outlined.Block,
+                                    title = "没有可用的聊天输入栏功能。"
+                                )
+                            }
+                        } else {
+                            lazySegmentedItems(applicableItems, key = { it.id }) { item ->
+                                ActionItemRow(
+                                    item = item,
+                                    context = context,
+                                    chatFooter = chatFooter,
+                                    onDismiss = { onDismiss() }
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = { Button(onDismiss) { Text("关闭") } }
+            )
+        }
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun ActionItemRow(
+        item: ActionItem,
+        context: Context,
+        chatFooter: ChatFooter,
+        onDismiss: () -> Unit
+    ) {
+        val handleClick = {
+            onDismiss()
+            try {
+                item.onClick(context, chatFooter)
+            } catch (ex: Throwable) {
+                WeLogger.e(TAG, "exception occurred while handling click event for ${item.id}", ex)
+            }
+        }
+
+        val handleLongClick = item.onLongClick?.let { longClick ->
+            {
+                try {
+                    longClick(context, chatFooter)
+                } catch (ex: Throwable) {
+                    WeLogger.e(TAG, "exception occurred while handling long-click event for ${item.id}", ex)
+                }
+            }
+        }
+
+        BaseWidget(
+            modifier = handleLongClick?.let { longClick ->
+                Modifier
+                    .clip(LocalSegmentedItemShape.current)
+                    .combinedClickable(onClick = handleClick, onLongClick = longClick)
+            } ?: Modifier,
+            icon = item.icon,
+            title = item.label,
+            onClick = if (handleLongClick == null) handleClick else null
+        )
+    }
+}

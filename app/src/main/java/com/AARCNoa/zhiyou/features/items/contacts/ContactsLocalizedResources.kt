@@ -1,0 +1,21 @@
+package com.AARCNoa.zhiyou.features.items.contacts
+
+import com.AARCNoa.zhiyou.utils.safeGetQuantityString
+import android.content.Context
+import androidx.annotation.StringRes
+
+/** 同名函数简化版：数量字符串用标准资源解析。 */
+internal fun localizedContactsQuantity(
+    @StringRes id: Int,
+    quantity: Int,
+    vararg formatArgs: Any,
+): String {
+    val app = android.app.ActivityThread.currentApplication() ?: return id.toString()
+    return app.resources.safeGetQuantityString(id, quantity, *formatArgs)
+}
+
+internal fun Context.localizedContactsQuantity(
+    @StringRes id: Int,
+    quantity: Int,
+    vararg formatArgs: Any,
+): String = resources.safeGetQuantityString(id, quantity, *formatArgs)

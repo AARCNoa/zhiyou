@@ -1,0 +1,204 @@
+package com.AARCNoa.zhiyou.features.api.ui
+
+import android.app.Activity
+import android.content.Context
+import android.widget.BaseAdapter
+import com.tencent.mm.chatroom.ui.ChatroomInfoUI
+import com.tencent.mm.plugin.profile.ui.ContactInfoUI
+import com.tencent.mm.ui.base.preference.MMPreference
+import com.tencent.mm.ui.base.preference.Preference
+import dev.ujhhgtg.reflekt.reflekt
+import dev.ujhhgtg.reflekt.utils.Modifiers
+import dev.ujhhgtg.reflekt.utils.isSubclassOf
+import dev.ujhhgtg.reflekt.utils.makeAccessible
+import com.AARCNoa.zhiyou.features.core.ApiFeature
+import com.AARCNoa.zhiyou.features.core.Feature
+import com.AARCNoa.zhiyou.utils.WeLogger
+import java.lang.reflect.Constructor
+import java.lang.reflect.Field
+import java.lang.reflect.Method
+import java.util.concurrent.CopyOnWriteArrayList
+
+@Feature(name = "联系人页面扩展", categories = ["API"])
+object WeContactPrefsScreenApi : ApiFeature() {
+
+    interface IContactInfoProvider {
+        fun getContactInfoItem(activity: Activity): List<PreferenceItem>
+        fun onItemClick(activity: Activity, key: String): Boolean
+    }
+
+    data class PreferenceItem(
+        val key: String,
+        val title: String,
+        val summary: String? = null,
+        val position: Int = -1,
+        /** 若给出，则依次尝试，插到「key 里包含该片段的第一条 Preference」之后（优先于 [position]）。 */
+        val afterKeyParts: List<String> = emptyList(),
+    )
+
+    private const val TAG = "WeContactPrefsScreenApi"
+
+    /**
+     * 特殊 position：插在「所有注入项」的最前面（仍在微信原生条目之后，不会挤乱头像/地区）。
+     * providers 的注册顺序由加载顺序决定、不可控，所以用这个标记显式排序。
+     */
+    const val POSITION_TOP_OF_INJECTED = -2
+
+    private val providers = CopyOnWriteArrayList<IContactInfoProvider>()
+
+    fun addProvider(provider: IContactInfoProvider) {
+        providers.addIfAbsent(provider)
+    }
+
+    fun removeProvider(provider: IContactInfoProvider) {
+        providers.remove(provider)
+    }
+
+    private lateinit var prefConstructor: Constructor<*>
+    private lateinit var prefKeyField: Field
+    private lateinit var adapterField: Field
+    private lateinit var addPreferenceMethod: Method
+    private lateinit var setKeyMethod: Method
+    private lateinit var setSummaryMethod: Method
+    private lateinit var setTitleMethod: Method
+
+    override fun onEnable() {
+        initReflection()
+
+        listOf(
+            ContactInfoUI::class,
+            ChatroomInfoUI::class
+        ).forEach {
+            it.reflekt().apply {
+                firstMethod { name = "initView" }
+                    .hookAfter {
+                        val adapterInstance = adapterField.get(thisObject as Activity)
+
+                        // 先收集所有 provider 的条目，再按「注入区置顶」标记稳定排序：
+                        // 标记过的排最前，其余保持 providers 的顺序。
+                        val collected = mutableListOf<PreferenceItem>()
+                        for (provider in providers) {
+                            try {
+                                collected += provider.getContactInfoItem(thisObject as Activity)
+                            } catch (ex: Exception) {
+                                WeLogger.e(
+                                    TAG,
+                                    "provider ${provider.javaClass.name} threw while providing contact info item",
+                                    ex
+                                )
+                            }
+                        }
+                        val ordered = collected.sortedBy {
+                            if (it.position == POSITION_TOP_OF_INJECTED) 0 else 1
+                        }
+
+                        for (item in ordered) {
+                            try {
+                                    val pref = prefConstructor.newInstance(thisObject as Context)
+                                    setKeyMethod.invoke(pref, item.key)
+                                    setTitleMethod.invoke(pref, item.title)
+                                    item.summary?.let { summary -> setSummaryMethod.invoke(pref, summary) }
+                                    // position < 0 表示追加到末尾；大于现有条目数时夹到末尾，
+                                    // 避免 IndexOutOfBounds 把整行吞掉。
+                                    // 注意 ?.count 是可空的，必须补 ?: 0，否则 count 变成 Int?
+                                    // 后面 coerceIn 会类型不匹配（之前的编译失败就是这里）。
+                                    val count = runCatching { (adapterInstance as? BaseAdapter)?.count ?: 0 }
+                                        .getOrDefault(0)
+                                    var pos = if (item.position < 0) count
+                                    else item.position.coerceIn(0, count)
+                                    for (part in item.afterKeyParts) {
+                                        val idx = findPreferenceIndex(adapterInstance, count, part)
+                                        if (idx >= 0) {
+                                            pos = (idx + 1).coerceIn(0, count)
+                                            break
+                                        }
+                                    }
+                                    addPreferenceMethod.invoke(adapterInstance, pref, pos)
+                            } catch (ex: Exception) {
+                                WeLogger.e(TAG, "failed to add contact info item ${item.key}", ex)
+                            }
+                        }
+                    }
+
+                firstMethod {
+                    name = "onPreferenceTreeClick"
+                }.hookBefore {
+                    val preference = args[1] ?: return@hookBefore
+                    val key = prefKeyField.get(preference) as? String ?: return@hookBefore
+                    for (provider in providers) {
+                        try {
+                            if (provider.onItemClick(thisObject as Activity, key)) {
+                                // 仅当原方法返回 boolean 时才设置 result = true
+                                if (method is java.lang.reflect.Method) {
+                                    val returnType = (method as java.lang.reflect.Method).returnType
+                                    if (returnType == Boolean::class.javaPrimitiveType || returnType == java.lang.Boolean::class.java) {
+                                        result = true
+                                    }
+                                }
+                                return@hookBefore
+                            }
+                        } catch (ex: Exception) {
+                            WeLogger.e(
+                                TAG,
+                                "provider ${provider.javaClass.name} threw while handling click event",
+                                ex
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** 在已存在的 Preference 里找「key 含指定片段」的那一条，用于把新条目插到它后面。 */
+    private fun findPreferenceIndex(adapter: Any, count: Int, keyPart: String): Int {
+        val getItem = adapter.javaClass.methods.firstOrNull {
+            it.name == "getItem" && it.parameterTypes.size == 1
+        } ?: return -1
+        for (i in 0 until count) {
+            val item = runCatching { getItem.invoke(adapter, i) }.getOrNull() ?: continue
+            val key = runCatching { prefKeyField.get(item) as? String }.getOrNull() ?: continue
+            if (key.contains(keyPart, ignoreCase = true)) return i
+        }
+        return -1
+    }
+
+    private fun initReflection() {
+        prefConstructor = Preference::class.reflekt()
+            .firstConstructor {
+                parameters(Context::class)
+            }.self
+
+        prefKeyField = Preference::class.reflekt()
+            .firstField {
+                type = String::class
+                modifiers { !it.contains(Modifiers.FINAL) }
+            }.self.makeAccessible()
+
+        adapterField = MMPreference::class.reflekt()
+            .firstField {
+                modifiers { !it.contains(Modifiers.STATIC) }
+                type { it isSubclassOf BaseAdapter::class }
+            }.self.makeAccessible()
+
+        addPreferenceMethod = adapterField.type.reflekt()
+            .firstMethod {
+                modifiers { !it.contains(Modifiers.FINAL) }
+                parameters(Preference::class, Int::class)
+            }.self
+
+        setKeyMethod = Preference::class.reflekt()
+            .firstMethod {
+                parameters(String::class)
+                returnType = Void.TYPE
+            }.self
+
+        val charSeqMethods = Preference::class.reflekt()
+            .methods {
+                parameters(CharSequence::class)
+            }.map { it.self }
+
+        setSummaryMethod = charSeqMethods.getOrElse(0) { error("setSummary method not found") }
+        setTitleMethod = charSeqMethods.getOrElse(1) { error("setTitle method not found") }
+    }
+}

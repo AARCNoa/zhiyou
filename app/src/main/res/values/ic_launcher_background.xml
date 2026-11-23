@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 icon.png 的浅色底一致：自适应图标背景与前景图标的底色看不出接缝。 -->
+    <color name="ic_launcher_background">#F8FAFB</color>
+</resources>
