@@ -18,9 +18,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Close
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 /**
  * A setting widget with a [Switch] trailing content.
@@ -103,7 +101,7 @@ fun SwitchWidget(
             ),
             thumbContent = {
                 Icon(
-                    imageVector = if (checked) MaterialSymbols.Outlined.Check else MaterialSymbols.Outlined.Close,
+                    imageVector = if (checked) OutlinedIcons.Check else OutlinedIcons.Close,
                     contentDescription = null,
                     modifier = Modifier.size(SwitchDefaults.IconSize)
                 )

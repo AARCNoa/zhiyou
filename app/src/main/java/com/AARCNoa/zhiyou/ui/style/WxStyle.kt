@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -116,6 +117,15 @@ object WxPalette {
     @Composable
     fun pageBackground(): Color =
         if (isDarkTheme()) DarkBackground else Background
+
+    /**
+     * 分段 / 筛选控件的选中底色。
+     *
+     * 与底部导航栏的容器色同一个色源（`surfaceContainer`），所以选中态只靠文字色区分，
+     * 不再出现「一整块绿底 + 白字」把分段读成按钮。深色下自动跟随 miuix 令牌。
+     */
+    @Composable
+    fun selectionSurface(): Color = MiuixTheme.colorScheme.surfaceContainer
 
     /** 卡片底色（跟随深浅色）。深色比底板亮一档，靠明度差拉出层次。 */
     @Composable

@@ -23,24 +23,24 @@ internal fun HideContacts.installMomentsHooks() {
  *
  * On 8.0.76 that entry is a *single* avatar, not an avatar strip, and the avatar it draws is driven
  * by one user-info KV pair: 68377 holds the wxid. "68377 is non-empty" is only *one of two* terms of
- * the dot predicate, though — `FindMoreFriendsUI.java:916-918` computes it as
+ * the dot predicate, though — `FindMoreFriendsUI.java` computes it as
  * `!(t8.K0(this.f226904x) && this.f226907y == 0)`, i.e. "68377 non-empty **OR** there are unread
- * likes/comments" (`f226907y` is `SnsCommentStorage.O0()`, `FindMoreFriendsUI.java:904`). The
- * bottom-tab dot in `com/tencent/mm/ui/ie.java:494` gates on 68377 alone. So suppressing 68377
+ * likes/comments" (`f226907y` is `SnsCommentStorage.O0()`, `FindMoreFriendsUI.java`). The
+ * bottom-tab dot in `com/tencent/mm/ui/ie.java` gates on 68377 alone. So suppressing 68377
  * removes the avatar and the 68377-attributable dot, but a hidden contact who likes or comments on a
  * post *you* can see still counts towards the unread-comment term — that surface is the inline
  * like/comment hook below, not this one.
  *
  * There is exactly one writer of that KV in the sync path — `NetSceneSnsSync.updateSyncDataCache`,
  * inlined by the decompiler into the synthetic accessor `static c3.H(c3, SnsObject)` at
- * `com/tencent/mm/plugin/sns/model/c3.java:103` (`c3.I` on 8.0.69), whose `:134` does
+ * `com/tencent/mm/plugin/sns/model/c3.java` (`c3.I` on 8.0.69), whose `:134` does
  * `j1.u().c().w(68377, snsObject.Username)`.
  *
  * So the fix is to cancel that whole cache write when the post's author is hidden, rather than to
  * patch the avatar view: it kills the avatar and the red dot in one place, and every other consumer
  * of KV 68377 inherits the fix for free — the chat-list banner
- * (`com/tencent/mm/ui/conversation/banner/z.java:44`) and the `+` menu's 朋友圈 entry
- * (`com/tencent/mm/ui/rg.java:371`) both read 68377 purely to decide whether to open Moments in
+ * (`com/tencent/mm/ui/conversation/banner/z.java`) and the `+` menu's 朋友圈 entry
+ * (`com/tencent/mm/ui/rg.java`) both read 68377 purely to decide whether to open Moments in
  * "there is something new" mode.
  *
  * Cancelling — as opposed to rewriting `Username` to `""` — is deliberate. `H` writes 68377 (author)
@@ -53,7 +53,7 @@ internal fun HideContacts.installMomentsHooks() {
  * One caveat to "consistent": `H` also *resets* the 68419/68420 counters, and cancelling it skips
  * those resets. 68420 is the "held the old red dot N times in a row" counter that
  * `isNeedToUpdateRedDot` increments on the branch where it does *not* call `H`
- * (`w2.java:191`), then compares against `clicfg_sns_red_dot_compare_times` (default 10). With `H`
+ * (`w2.java`), then compares against `clicfg_sns_red_dot_compare_times` (default 10). With `H`
  * permanently cancelled for hidden authors that counter only ever grows, so after ~10 suppressed
  * syncs WeChat starts biasing towards showing a dot for the next non-hidden post. That is benign —
  * it can only cause an *extra* dot for a post the user is allowed to see, never a leak — so it is
@@ -85,8 +85,8 @@ private fun HideContacts.installMomentsRedDotHook() {
  *
  * `fb4.z0.D0` ("SnsUtil.snsInfoToSnsStruct") is the single chokepoint that turns that raw
  * `SnsObject` into the UI-facing `dt` struct, for both Moments renderers that exist in 8.0.76 (the
- * classic feed item and the "improve" recycler feed — see the two call sites, `vc4/g0.java:76` and
- * `.../ui/improve/component/f2.java:765`). Filtering there means every renderer downstream already
+ * classic feed item and the "improve" recycler feed — see the two call sites, `vc4/g0.java` and
+ * `.../ui/improve/component/f2.java`). Filtering there means every renderer downstream already
  * gets a clean object.
  */
 private fun HideContacts.installMomentsInlineEntryHook() {

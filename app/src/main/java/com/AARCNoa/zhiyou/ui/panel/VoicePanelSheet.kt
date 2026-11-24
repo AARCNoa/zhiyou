@@ -46,31 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Arrow_back
-import com.composables.icons.materialsymbols.outlined.Check_circle
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Cloud
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Download
-import com.composables.icons.materialsymbols.outlined.Drag_handle
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Folder
-import com.composables.icons.materialsymbols.outlined.History
-import com.composables.icons.materialsymbols.outlined.Manage_search
-import com.composables.icons.materialsymbols.outlined.Mic
-import com.composables.icons.materialsymbols.outlined.Pause
-import com.composables.icons.materialsymbols.outlined.Play_arrow
-import com.composables.icons.materialsymbols.outlined.Refresh
-import com.composables.icons.materialsymbols.outlined.Save
-import com.composables.icons.materialsymbols.outlined.Select_all
-import com.composables.icons.materialsymbols.outlined.Send
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Share
-import com.composables.icons.materialsymbols.outlined.Text_to_speech
-import com.composables.icons.materialsymbols.outlined.Travel_explore
-import com.composables.icons.materialsymbols.outlined.Upload_file
 import com.AARCNoa.zhiyou.features.items.chat.panel.CloneExample
 import com.AARCNoa.zhiyou.features.items.chat.panel.CloneVoice
 import com.AARCNoa.zhiyou.features.items.chat.panel.LocalSortMode
@@ -87,6 +62,7 @@ import com.AARCNoa.zhiyou.features.items.chat.panel.VoiceProviderPage
 import com.AARCNoa.zhiyou.features.items.chat.panel.parallelForEachWithProgress
 import com.AARCNoa.zhiyou.features.items.chat.panel.voice.VoiceProvider
 import com.AARCNoa.zhiyou.features.items.chat.panel.voice.VoiceProviderRegistry
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.android.showToastSuspend
 import com.AARCNoa.zhiyou.utils.fs.asPath
 import kotlinx.coroutines.CancellationException
@@ -740,14 +716,14 @@ private fun VoicePanelContent(
         }
     }
     val rail = listOf(
-        PanelRailItem(VoiceDestination.RECENT, MaterialSymbols.Outlined.History, "最近使用"),
-        PanelRailItem(VoiceDestination.LOCAL, MaterialSymbols.Outlined.Folder, "本地语音包"),
-        PanelRailItem(VoiceDestination.SEARCH, MaterialSymbols.Outlined.Manage_search, "本地搜索"),
-        PanelRailItem(VoiceDestination.TTS, MaterialSymbols.Outlined.Text_to_speech, "文字转语音"),
-        PanelRailItem(VoiceDestination.ONLINE, MaterialSymbols.Outlined.Cloud, "在线语音包"),
-        PanelRailItem(VoiceDestination.ONLINE_SEARCH, MaterialSymbols.Outlined.Travel_explore, "在线搜索"),
-        PanelRailItem(VoiceDestination.SHARED, MaterialSymbols.Outlined.Share, "共享语音包"),
-        PanelRailItem(VoiceDestination.SETTINGS, MaterialSymbols.Outlined.Settings, "设置"),
+        PanelRailItem(VoiceDestination.RECENT, OutlinedIcons.History, "最近使用"),
+        PanelRailItem(VoiceDestination.LOCAL, OutlinedIcons.Folder, "本地语音包"),
+        PanelRailItem(VoiceDestination.SEARCH, OutlinedIcons.Manage_search, "本地搜索"),
+        PanelRailItem(VoiceDestination.TTS, OutlinedIcons.Text_to_speech, "文字转语音"),
+        PanelRailItem(VoiceDestination.ONLINE, OutlinedIcons.Cloud, "在线语音包"),
+        PanelRailItem(VoiceDestination.ONLINE_SEARCH, OutlinedIcons.Travel_explore, "在线搜索"),
+        PanelRailItem(VoiceDestination.SHARED, OutlinedIcons.Share, "共享语音包"),
+        PanelRailItem(VoiceDestination.SETTINGS, OutlinedIcons.Settings, "设置"),
     )
 
     val title = when (destination) {
@@ -838,7 +814,7 @@ private fun VoicePanelContent(
             title = "保存到语音包",
             createLabel = "新建语音包",
             itemCountLabel = { count -> "$count 条语音" },
-            packIcon = MaterialSymbols.Outlined.Folder,
+            packIcon = OutlinedIcons.Folder,
             packs = editableLocalPacks.map { PanelPackChoice(it.id, it.title, it.itemCount) },
             onCreatePack = actions.createLocalPack,
             onSelect = { packId -> startVoiceSave(packId, items) },
@@ -956,7 +932,7 @@ private fun VoicePanelContent(
             items = batchCandidates,
             selectedKeys = selectedDownloadIds,
             key = ::voiceSelectionKey,
-            terminalIcon = if (deletingLocalVoices) MaterialSymbols.Outlined.Delete else MaterialSymbols.Outlined.Save,
+            terminalIcon = if (deletingLocalVoices) OutlinedIcons.Delete else OutlinedIcons.Save,
             terminalLabel = if (deletingLocalVoices) "删除" else "保存",
             onClose = {
                 batchMode = false
@@ -971,8 +947,8 @@ private fun VoicePanelContent(
     } else when (destination) {
         VoiceDestination.LOCAL -> if (localCatalogVisible) {
             buildList {
-                add(PanelAction(MaterialSymbols.Outlined.Add, "新建语音包") { prompt = VoicePrompt.CreateLocalPack })
-                add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::refreshLocal))
+                add(PanelAction(OutlinedIcons.Add, "新建语音包") { prompt = VoicePrompt.CreateLocalPack })
+                add(PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::refreshLocal))
                 add(
                     panelLocalSortAction(
                         mode = localPackSortMode,
@@ -984,26 +960,26 @@ private fun VoicePanelContent(
             }
         } else buildList {
             if (localPackLayout == VoicePackLayout.LIST) {
-                add(PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回") { localPackDetailId = null })
+                add(PanelAction(OutlinedIcons.Arrow_back, "返回") { localPackDetailId = null })
             } else {
-                add(PanelAction(MaterialSymbols.Outlined.Add, "新建语音包") { prompt = VoicePrompt.CreateLocalPack })
+                add(PanelAction(OutlinedIcons.Add, "新建语音包") { prompt = VoicePrompt.CreateLocalPack })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Edit, "重命名", selectedLocal != null) {
+            add(PanelAction(OutlinedIcons.Edit, "重命名", selectedLocal != null) {
                 selectedLocal?.let { prompt = VoicePrompt.RenameLocalPack(it) }
             })
-            add(PanelAction(MaterialSymbols.Outlined.Delete, "删除", selectedLocal != null) {
+            add(PanelAction(OutlinedIcons.Delete, "删除", selectedLocal != null) {
                 selectedLocal?.let { prompt = VoicePrompt.DeleteLocalPack(it) }
             })
-            add(PanelAction(MaterialSymbols.Outlined.Upload_file, "导入", selectedLocal != null) {
+            add(PanelAction(OutlinedIcons.Upload_file, "导入", selectedLocal != null) {
                 selectedLocal?.let { prompt = VoicePrompt.ImportLocal(it) }
             })
             if (localPackLayout == VoicePackLayout.LIST) {
-                add(PanelAction(MaterialSymbols.Outlined.Select_all, "多选", !selectedLocal?.items.isNullOrEmpty()) {
+                add(PanelAction(OutlinedIcons.Select_all, "多选", !selectedLocal?.items.isNullOrEmpty()) {
                     batchMode = true
                     selectedDownloadIds = emptySet()
                 })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::refreshLocal))
+            add(PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::refreshLocal))
             add(
                 panelLocalSortAction(
                     mode = localItemSortMode,
@@ -1016,7 +992,7 @@ private fun VoicePanelContent(
 
         VoiceDestination.SEARCH -> emptyList()
         VoiceDestination.ONLINE -> buildList {
-            add(PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回", providerParent != null) {
+            add(PanelAction(OutlinedIcons.Arrow_back, "返回", providerParent != null) {
                 providerParent = null
                 providerRootSnapshot?.let { snapshot ->
                     providerPage = snapshot.page
@@ -1024,13 +1000,13 @@ private fun VoicePanelContent(
                 } ?: loadProvider(true)
                 providerRootSnapshot = null
             })
-            add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新") { loadProvider() })
+            add(PanelAction(OutlinedIcons.Refresh, "刷新") { loadProvider() })
             if (providerParent != null && batchCandidates.isNotEmpty()) {
-                add(PanelAction(MaterialSymbols.Outlined.Select_all, "多选") {
+                add(PanelAction(OutlinedIcons.Select_all, "多选") {
                     batchMode = true
                     selectedDownloadIds = emptySet()
                 })
-                add(PanelAction(MaterialSymbols.Outlined.Save, "保存") {
+                add(PanelAction(OutlinedIcons.Save, "保存") {
                     providerParent?.let(::saveWholeVoicePack)
                 })
             }
@@ -1038,7 +1014,7 @@ private fun VoicePanelContent(
 
         VoiceDestination.ONLINE_SEARCH -> buildList {
             if (onlineSearchParent != null) {
-                add(PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回搜索结果") {
+                add(PanelAction(OutlinedIcons.Arrow_back, "返回搜索结果") {
                     onlineSearchParent = null
                     onlineSearchRootSnapshot?.let { snapshot ->
                         onlineSearchPage = snapshot.page
@@ -1047,17 +1023,17 @@ private fun VoicePanelContent(
                     onlineSearchRootSnapshot = null
                 })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onlineSearchQuery.isNotBlank()) {
+            add(PanelAction(OutlinedIcons.Refresh, "刷新", onlineSearchQuery.isNotBlank()) {
                 loadOnlineSearch()
             })
             if (batchCandidates.isNotEmpty()) {
-                add(PanelAction(MaterialSymbols.Outlined.Select_all, "多选") {
+                add(PanelAction(OutlinedIcons.Select_all, "多选") {
                     batchMode = true
                     selectedDownloadIds = emptySet()
                 })
             }
             if (onlineSearchParent != null && batchCandidates.isNotEmpty()) {
-                add(PanelAction(MaterialSymbols.Outlined.Save, "保存") {
+                add(PanelAction(OutlinedIcons.Save, "保存") {
                     onlineSearchParent?.let(::saveWholeVoicePack)
                 })
             }
@@ -1065,7 +1041,7 @@ private fun VoicePanelContent(
 
         VoiceDestination.SHARED -> buildList {
             if (localPackLayout == VoicePackLayout.LIST && selectedSharedPack != null) {
-                add(PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回共享语音包") {
+                add(PanelAction(OutlinedIcons.Arrow_back, "返回共享语音包") {
                     selectedSharedPack = null
                     sharedQuery = ""
                     sharedSearchExpanded = false
@@ -1074,23 +1050,23 @@ private fun VoicePanelContent(
                 })
             }
             if (batchCandidates.isNotEmpty()) {
-                add(PanelAction(MaterialSymbols.Outlined.Select_all, "多选") {
+                add(PanelAction(OutlinedIcons.Select_all, "多选") {
                     batchMode = true
                     selectedDownloadIds = emptySet()
                 })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Add, "新建语音包") { prompt = VoicePrompt.CreateSharedPack })
+            add(PanelAction(OutlinedIcons.Add, "新建语音包") { prompt = VoicePrompt.CreateSharedPack })
             selectedSharedPack?.let { pack ->
-                add(PanelAction(MaterialSymbols.Outlined.Edit, "重命名") {
+                add(PanelAction(OutlinedIcons.Edit, "重命名") {
                     prompt = VoicePrompt.RenameSharedPack(pack)
                 })
-                add(PanelAction(MaterialSymbols.Outlined.Delete, "删除") {
+                add(PanelAction(OutlinedIcons.Delete, "删除") {
                     prompt = VoicePrompt.DeleteSharedPack(pack)
                 })
-                add(PanelAction(MaterialSymbols.Outlined.Check_circle, "确认提交审核") {
+                add(PanelAction(OutlinedIcons.Check_circle, "确认提交审核") {
                     prompt = VoicePrompt.ConfirmSharedPack(pack)
                 })
-                add(PanelAction(MaterialSymbols.Outlined.Upload_file, "上传语音") {
+                add(PanelAction(OutlinedIcons.Upload_file, "上传语音") {
                     actions.uploadSharedVoice(pack.id, { progressMessage = "正在上传语音..." }) { result ->
                         progressMessage = null
                         operationMessage = result.fold({ it }, { it.message ?: "上传失败" })
@@ -1098,7 +1074,7 @@ private fun VoicePanelContent(
                     }
                 })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::loadMySharedPacks))
+            add(PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::loadMySharedPacks))
         }
 
         else -> emptyList()
@@ -1813,13 +1789,13 @@ private fun VoiceImportModePrompt(
                 mode = VoiceImportMode.MULTIPLE_FILES,
                 title = "选择多个语音文件",
                 description = "从系统文件选择器一次选择一个或多个文件",
-                icon = MaterialSymbols.Outlined.Upload_file,
+                icon = OutlinedIcons.Upload_file,
             ),
             PanelImportOption(
                 mode = VoiceImportMode.DIRECTORY,
                 title = "导入整个目录",
                 description = "递归导入所选目录内支持的语音文件",
-                icon = MaterialSymbols.Outlined.Folder,
+                icon = OutlinedIcons.Folder,
             ),
         ),
         onDismiss = onDismiss,
@@ -1907,7 +1883,7 @@ private fun VoicePackList(
                         Text(pack.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
                     supportingContent = { Text("${pack.itemCount} 条语音") },
-                    leadingContent = { Icon(MaterialSymbols.Outlined.Folder, null) },
+                    leadingContent = { Icon(OutlinedIcons.Folder, null) },
                 )
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
             }
@@ -1932,7 +1908,7 @@ private fun VoicePackReorderContent(
                 Text(pack.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
             },
             supportingContent = { Text("${pack.itemCount} 条语音") },
-            leadingContent = { Icon(MaterialSymbols.Outlined.Folder, null) },
+            leadingContent = { Icon(OutlinedIcons.Folder, null) },
             trailingContent = {
                 Box(
                     modifier = Modifier
@@ -1941,7 +1917,7 @@ private fun VoicePackReorderContent(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Drag_handle,
+                        OutlinedIcons.Drag_handle,
                         contentDescription = "拖动 ${pack.title}",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1975,7 +1951,7 @@ private fun VoiceItemReorderContent(
                     }.joinToString(" · "),
                 )
             },
-            leadingContent = { Icon(MaterialSymbols.Outlined.Mic, null) },
+            leadingContent = { Icon(OutlinedIcons.Mic, null) },
             trailingContent = {
                 Box(
                     modifier = Modifier
@@ -1984,7 +1960,7 @@ private fun VoiceItemReorderContent(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Drag_handle,
+                        OutlinedIcons.Drag_handle,
                         contentDescription = "拖动 ${voice.title}",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2046,7 +2022,7 @@ private fun VoiceList(
     selectable: Boolean = false,
     selectedIds: Set<String> = emptySet(),
     onToggleSelection: ((VoiceItem) -> Unit)? = null,
-    terminalActionIcon: androidx.compose.ui.graphics.vector.ImageVector = MaterialSymbols.Outlined.Send,
+    terminalActionIcon: androidx.compose.ui.graphics.vector.ImageVector = OutlinedIcons.Send,
     terminalActionLabel: String = "发送",
 ) {
     val resolvedListState = listState ?: rememberLazyListState()
@@ -2073,7 +2049,7 @@ private fun VoiceList(
                             )
                         } else {
                             Icon(
-                                if (voice.isContainer) MaterialSymbols.Outlined.Folder else MaterialSymbols.Outlined.Mic,
+                                if (voice.isContainer) OutlinedIcons.Folder else OutlinedIcons.Mic,
                                 null,
                             )
                         }
@@ -2087,13 +2063,13 @@ private fun VoiceList(
                             SendCountBadge(voice.sendCount, Modifier.padding(end = 2.dp))
                             IconButton(onClick = { onPreview(voice) }) {
                                 Icon(
-                                    if (playingId == voice.id) MaterialSymbols.Outlined.Pause else MaterialSymbols.Outlined.Play_arrow,
+                                    if (playingId == voice.id) OutlinedIcons.Pause else OutlinedIcons.Play_arrow,
                                     if (playingId == voice.id) "暂停" else "试听",
                                 )
                             }
                             if (onAdd != null) {
                                 IconButton(onClick = { onAdd(voice) }) {
-                                    Icon(MaterialSymbols.Outlined.Download, "添加到本地")
+                                    Icon(OutlinedIcons.Download, "添加到本地")
                                 }
                             }
                             IconButton(onClick = { onSend(voice) }) {
@@ -2478,10 +2454,10 @@ private fun CloneManagerOverlay(
     PanelPageOverlay(onDismiss = onDismiss, onBack = onSystemBack) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (source != null) {
-                IconButton(onClick = onSystemBack) { Icon(MaterialSymbols.Outlined.Arrow_back, "返回") }
+                IconButton(onClick = onSystemBack) { Icon(OutlinedIcons.Arrow_back, "返回") }
             }
             Text("选择或管理音色", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onDismiss) { Icon(MaterialSymbols.Outlined.Close, "关闭") }
+            IconButton(onClick = onDismiss) { Icon(OutlinedIcons.Close, "关闭") }
         }
         when (source) {
             null -> {
@@ -2518,7 +2494,7 @@ private fun CloneManagerOverlay(
                             },
                             trailingContent = {
                                 IconButton(onClick = { onDelete(voice) }) {
-                                    Icon(MaterialSymbols.Outlined.Delete, "删除音色")
+                                    Icon(OutlinedIcons.Delete, "删除音色")
                                 }
                             },
                         )
@@ -2539,7 +2515,7 @@ private fun CloneManagerOverlay(
                 playingId,
                 onPreview = onPreviewVoice,
                 onSend = onChooseVoice,
-                terminalActionIcon = MaterialSymbols.Outlined.Check_circle,
+                terminalActionIcon = OutlinedIcons.Check_circle,
                 terminalActionLabel = "选择为克隆来源",
             )
 
@@ -2554,14 +2530,14 @@ private fun CloneManagerOverlay(
                                 colors = panelListItemColors(),
                                 headlineContent = { Text(pack.title) },
                                 supportingContent = { Text("${pack.itemCount} 条语音") },
-                                leadingContent = { Icon(MaterialSymbols.Outlined.Folder, null) },
+                                leadingContent = { Icon(OutlinedIcons.Folder, null) },
                             )
                         }
                     }
                 }
             } else {
                 OutlinedButton(onClick = onBackSharedPacks) {
-                    Icon(MaterialSymbols.Outlined.Arrow_back, null)
+                    Icon(OutlinedIcons.Arrow_back, null)
                     Text("返回共享语音包")
                 }
                 Text(sharedPack.title, style = MaterialTheme.typography.titleSmall)
@@ -2572,7 +2548,7 @@ private fun CloneManagerOverlay(
                             playingId,
                             onPreview = onPreviewVoice,
                             onSend = onChooseVoice,
-                            terminalActionIcon = MaterialSymbols.Outlined.Check_circle,
+                            terminalActionIcon = OutlinedIcons.Check_circle,
                             terminalActionLabel = "选择为克隆来源",
                         )
                     }
@@ -2590,14 +2566,14 @@ private fun CloneManagerOverlay(
                                         .clickable { onSelectExampleGroup(group) },
                                     colors = panelListItemColors(),
                                     headlineContent = { Text(group) },
-                                    leadingContent = { Icon(MaterialSymbols.Outlined.Folder, null) },
+                                    leadingContent = { Icon(OutlinedIcons.Folder, null) },
                                 )
                             }
                         }
                     }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBackExamples) { Icon(MaterialSymbols.Outlined.Arrow_back, "返回示例目录") }
+                        IconButton(onClick = onBackExamples) { Icon(OutlinedIcons.Arrow_back, "返回示例目录") }
                         Text("语音示例 / $selectedExampleGroup", style = MaterialTheme.typography.titleSmall)
                     }
                     PanelStateContent(examplesState) { examples ->
@@ -2612,10 +2588,10 @@ private fun CloneManagerOverlay(
                                     trailingContent = {
                                         Row {
                                             IconButton(onClick = { onPreviewExample(example) }) {
-                                                Icon(MaterialSymbols.Outlined.Play_arrow, "试听")
+                                                Icon(OutlinedIcons.Play_arrow, "试听")
                                             }
                                             IconButton(onClick = { onAddExample(example) }) {
-                                                Icon(MaterialSymbols.Outlined.Download, "添加到本地")
+                                                Icon(OutlinedIcons.Download, "添加到本地")
                                             }
                                         }
                                     },
@@ -2662,7 +2638,7 @@ private fun VoicePreviewOverlay(
         ) {
             IconButton(onClick = onToggle) {
                 Icon(
-                    if (playing) MaterialSymbols.Outlined.Pause else MaterialSymbols.Outlined.Play_arrow,
+                    if (playing) OutlinedIcons.Pause else OutlinedIcons.Play_arrow,
                     if (playing) "暂停" else "继续",
                 )
             }

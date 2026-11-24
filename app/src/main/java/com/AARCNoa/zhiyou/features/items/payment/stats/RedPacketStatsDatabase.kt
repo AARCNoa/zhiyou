@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 /**
  * 抢红包金额统计的本地数据库。
  *
- * 与 agent 的 WeAgentDatabase 相互独立（不同库文件），互不影响。
+ * 单独一个库文件，不影响模块里的其它数据。
  * exportSchema=false：v1 无迁移需求，避免额外生成 schema 文件。
  * fallbackToDestructiveMigration：schema 意外变化时兜底重建，绝不让微信崩溃。
  */

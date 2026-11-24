@@ -46,12 +46,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.get
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Upload_file
 import com.tencent.mm.ui.base.AnimImageView
 import com.tencent.mm.ui.widget.MMNeat7extView
 import de.robv.android.xposed.XC_MethodHook
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.parseArgbStrict
 import com.AARCNoa.zhiyou.activity.TransparentActivity
 import com.AARCNoa.zhiyou.features.api.core.models.MessageType
@@ -542,7 +540,7 @@ object CustomMessageBubbles : ClickableFeature(), WeChatMessageViewApi.ICreateVi
             )
             Button(onClick = onImport) {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Upload_file,
+                    imageVector = OutlinedIcons.Upload_file,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
@@ -554,7 +552,7 @@ object CustomMessageBubbles : ClickableFeature(), WeChatMessageViewApi.ICreateVi
                 enabled = form.imageExists,
             ) {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Delete,
+                    imageVector = OutlinedIcons.Delete,
                     contentDescription = "删除已导入的气泡图片",
                     tint = if (form.imageExists) {
                         MaterialTheme.colorScheme.error

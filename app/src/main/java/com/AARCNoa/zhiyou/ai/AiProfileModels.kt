@@ -866,7 +866,47 @@ object AiDates {
         val minute = minuteOfDay.coerceIn(0, 23 * 60 + 59)
         return String.format(Locale.US, "%02d:%02d", minute / 60, minute % 60)
     }
+
+    /**
+     * 毫秒 → `HH:mm`。
+     *
+     * 只给「同一天内」的时刻用（今日总结、群摘要的时钟）；跨天要带日期，
+     * 用 [timeOf]。
+     */
+    fun hhmm(ms: Long): String =
+        runCatching {
+            java.text.SimpleDateFormat("HH:mm", Locale.US).format(java.util.Date(ms))
+        }.getOrDefault("")
+
+    /**
+     * 毫秒 → `MM-dd HH:mm`（跨天的时刻）。
+     *
+     * 总览、群摘要历史、工作汇报、群总结提示词都用这一份：以前三处各写一遍
+     * `SimpleDateFormat("MM-dd HH:mm")`，格式一改就有的地方忘了跟。
+     * 时间戳无效（≤0）时返回 `—`，避免显示 1970 年。
+     */
+    fun timeOf(ms: Long): String {
+        if (ms <= 0L) return "—"
+        return runCatching {
+            java.text.SimpleDateFormat("MM-dd HH:mm", Locale.US).format(java.util.Date(ms))
+        }.getOrDefault("—")
+    }
 }
+
+/**
+ * 好友显示名：备注 > 昵称 > wxid。
+ *
+ * 列表、详情标题、胶囊、提示词、总览事件都用这一份。原先六处各拼一遍
+ * `remark.ifBlank { nickname }.ifBlank { wxId }`，`AiPager` 与 `AiProfileDialog`
+ * 甚至各写了一个同名私有函数 —— 任何一处改了规则，其他地方不会跟。
+ *
+ * 只有一个例外：清空提醒的标题故意要「空」再兜成「这位好友」，它不用本属性。
+ */
+val AiProfileSummary.displayNameOrId: String
+    get() = remark.ifBlank { nickname }.ifBlank { wxId }
+
+val AiProfile.displayNameOrId: String
+    get() = remark.ifBlank { nickname }.ifBlank { wxId }
 
 /**
  * token 估算：给用户看的用量指示，不追求和具体分词器完全一致。
@@ -891,3 +931,14 @@ object AiTokens {
         else -> String.format(Locale.US, "%.1fk", tokens / 1000.0)
     }
 }
+
+/**
+ * 「记忆 12 · 标签 8」：档案规模的一行小字。
+ *
+ * 聊天建议与朋友圈评论两个浮层共用，避免一边写「12 条记忆」、一边写「记忆 12」。
+ * 两样都为 0 时返回空串，调用方据此不显示这一行（没有档案规模就没有必要占位）。
+ */
+fun profileCountsText(memoryCount: Int, tagCount: Int): String = buildList {
+    if (memoryCount > 0) add("记忆 $memoryCount")
+    if (tagCount > 0) add("标签 $tagCount")
+}.joinToString(" · ")

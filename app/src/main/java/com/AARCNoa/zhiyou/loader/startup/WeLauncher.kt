@@ -54,8 +54,8 @@ object WeLauncher {
 
         ParcelableFixer.init()
 
-        // 兜底：「资源表里有 ID、APK 里没有文件」的 res/raw/*.svg 会让微信自己 inflate 时闪退，
-        // 这里只对该类资源做降级（其它资源零开销），详见 ResourceFallbackGuard 注释。
+        // 兜底：「资源表里有 ID、APK 里没有文件」会让微信自己 inflate 时闪退（raw svg、
+        // 以及 xml 选择器里引用的子资源都算），这里只对这两类降级，详见 ResourceFallbackGuard 注释。
         com.AARCNoa.zhiyou.utils.fix.ResourceFallbackGuard.install()
 
         // 每个进程只留这一条启动横幅：框架版本、崩溃拦截、资源兜底的实际状态都在这里。

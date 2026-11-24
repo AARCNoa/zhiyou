@@ -35,9 +35,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Edit
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 @Composable
 internal fun HomeSidePanelCardFrame(
@@ -114,14 +112,14 @@ internal fun HomeSidePanelCardBadge(
                     HomeSidePanelBadgeButton(
                         onClick = onEdit.takeIf { visible },
                         contentDescription = editDescriptionRes,
-                        icon = MaterialSymbols.Outlined.Edit,
+                        icon = OutlinedIcons.Edit,
                     )
                 }
                 if (retainedDelete) {
                     HomeSidePanelBadgeButton(
                         onClick = onDelete.takeIf { visible },
                         contentDescription = deleteDescriptionRes,
-                        icon = MaterialSymbols.Outlined.Close,
+                        icon = OutlinedIcons.Close,
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }

@@ -1,10 +1,7 @@
 package com.AARCNoa.zhiyou.ui.panel
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Save
-import com.composables.icons.materialsymbols.outlined.Sort
 import com.AARCNoa.zhiyou.features.items.chat.panel.LocalSortMode
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 internal fun panelLocalSortAction(
     mode: LocalSortMode,
@@ -12,7 +9,7 @@ internal fun panelLocalSortAction(
     onModeChange: (LocalSortMode) -> Unit,
     onStartCustomOrder: () -> Unit,
 ) = PanelAction(
-    icon = MaterialSymbols.Outlined.Sort,
+    icon = OutlinedIcons.Sort,
     label = mode.label,
     enabled = enabled,
     showLabel = true,
@@ -24,8 +21,8 @@ internal fun panelReorderActions(
     onCancel: () -> Unit,
     onSave: () -> Unit,
 ) = listOf(
-    PanelAction(MaterialSymbols.Outlined.Close, "取消", onClick = onCancel),
-    PanelAction(MaterialSymbols.Outlined.Save, "保存", onClick = onSave),
+    PanelAction(OutlinedIcons.Close, "取消", onClick = onCancel),
+    PanelAction(OutlinedIcons.Save, "保存", onClick = onSave),
 )
 
 internal fun <T> List<T>.moveItem(from: Int, to: Int): List<T> =

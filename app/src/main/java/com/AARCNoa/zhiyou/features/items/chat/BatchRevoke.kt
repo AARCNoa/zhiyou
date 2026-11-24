@@ -1,11 +1,10 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Edit
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.UndoIcon
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
@@ -24,7 +23,7 @@ object BatchRevoke : SwitchFeature(), WeChatMessageContextMenuApi.IMenuItemsProv
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {
         return listOf(
             WeChatMessageContextMenuApi.MenuItem(
-                777023, "撤回", UndoIcon, MaterialSymbols.Outlined.Edit,
+                777023, "撤回", UndoIcon, OutlinedIcons.Edit,
                 isSupported = { false },
                 // revokes then loads one message's text into the input box; single-message only
                 multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Adapted(

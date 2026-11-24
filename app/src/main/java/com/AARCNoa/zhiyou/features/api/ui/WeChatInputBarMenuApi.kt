@@ -13,8 +13,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Block
 import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
@@ -28,6 +26,7 @@ import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.m3.BaseWidget
 import com.AARCNoa.zhiyou.ui.content.m3.LocalSegmentedItemShape
 import com.AARCNoa.zhiyou.ui.content.m3.lazySegmentedItems
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.findViewByChildIndexes
 import com.AARCNoa.zhiyou.ui.utils.findViewWhich
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
@@ -118,7 +117,7 @@ object WeChatInputBarMenuApi : ApiFeature(), IResolveDex {
                         if (applicableItems.isEmpty()) {
                             item(key = "no_actions_placeholder") {
                                 BaseWidget(
-                                    icon = MaterialSymbols.Outlined.Block,
+                                    icon = OutlinedIcons.Block,
                                     title = "没有可用的聊天输入栏功能。"
                                 )
                             }

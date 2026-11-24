@@ -57,19 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete_sweep
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Expand_more
-import com.composables.icons.materialsymbols.outlined.Filter_list
-import com.composables.icons.materialsymbols.outlined.More_vert
-import com.composables.icons.materialsymbols.outlined.Refresh
-import com.composables.icons.materialsymbols.outlined.Save
-import com.composables.icons.materialsymbols.outlined.Share
-import com.composables.icons.materialsymbols.outlined.Vertical_align_bottom
-import com.composables.icons.materialsymbols.outlined.Vertical_align_top
 import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.activity.TransparentActivity
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.HostInfo
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToastSuspend
@@ -130,12 +120,12 @@ private data class CrashSection(
     val body: String,
 )
 
-// WeLogger writes each entry as: "$ts $level/$TAG $tag: $msg"
+// 每行格式：`$ts $level/$TAG $tag: $msg`
 //   ts    = yyyy-MM-dd HH:mm:ss.SSS
-//   level = one of V D I W E A
-//   $TAG  = BuildConfig.TAG (the module tag), $tag = caller tag
-// e.g. "2026-07-05 14:30:22.123 E/WeKit AggregateChats: something failed"
-// Groups: 1=date 2=time(+ms) 3=level 4=moduleTag 5=callerTag 6=message
+//   level = V D I W E A 之一
+//   $TAG  = BuildConfig.TAG（模块固定为 WCX），$tag = 调用方自带标签
+// 例：`2026-07-05 14:30:22.123 E/WCX AggregateChats: something failed`
+// 分组：1=日期 2=时间(含毫秒) 3=级别 4=模块标签 5=调用方标签 6=正文
 private val RUN_LOG_REGEX = Regex(
     """^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) ([VDIWEAF])/(\S+)\s+([^:]*): (.*)$""",
 )
@@ -337,6 +327,12 @@ fun LogsPager() {
     var menuOpen by remember { mutableStateOf(false) }
 
     Scaffold(
+        // 与其他页同一套底色：miuix Scaffold 默认铺自己的 background，会把外层
+        // SettingsActivity 的 pageBackground 整页盖成另一个色值，日志页看起来偏白/偏黑。
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WxPalette.pageBackground()),
+        containerColor = Color.Transparent,
         topBar = {},
         popupHost = {},
     ) { innerPadding ->
@@ -350,7 +346,8 @@ fun LogsPager() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 10.dp, end = 6.dp),
+                    // 与下方列表的 12dp 内边距一致：文件名左边缘正好压在卡片左边缘上。
+                    .padding(start = 12.dp, end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // 文件选择器在最左，和右侧的图标同一行：顶部只占一行。
@@ -375,7 +372,7 @@ fun LogsPager() {
                     anchor = {
                         IconButton(onClick = { kindMenuOpen = true }) {
                             Icon(
-                                imageVector = MaterialSymbols.Outlined.Filter_list,
+                                imageVector = OutlinedIcons.Filter_list,
                                 contentDescription = "日志类型",
                                 tint = MiuixTheme.colorScheme.onBackground,
                             )
@@ -390,7 +387,7 @@ fun LogsPager() {
                             trailing = if (isSelected) {
                                 {
                                     Icon(
-                                        imageVector = MaterialSymbols.Outlined.Check,
+                                        imageVector = OutlinedIcons.Check,
                                         contentDescription = "当前显示",
                                         tint = WxPalette.Primary,
                                         modifier = Modifier.size(18.dp),
@@ -410,7 +407,7 @@ fun LogsPager() {
                         ?: scope.launch { showToastSuspend("暂无可分享的日志") }
                 }) {
                     Icon(
-                        imageVector = MaterialSymbols.Outlined.Share,
+                        imageVector = OutlinedIcons.Share,
                         contentDescription = "分享",
                         tint = MiuixTheme.colorScheme.onBackground,
                     )
@@ -420,7 +417,7 @@ fun LogsPager() {
                         ?: scope.launch { showToastSuspend("暂无可保存的日志") }
                 }) {
                     Icon(
-                        imageVector = MaterialSymbols.Outlined.Save,
+                        imageVector = OutlinedIcons.Save,
                         contentDescription = "保存",
                         tint = MiuixTheme.colorScheme.onBackground,
                     )
@@ -432,29 +429,29 @@ fun LogsPager() {
                     anchor = {
                         IconButton(onClick = { menuOpen = true }) {
                             Icon(
-                                imageVector = MaterialSymbols.Outlined.More_vert,
+                                imageVector = OutlinedIcons.More_vert,
                                 contentDescription = "菜单",
                                 tint = MiuixTheme.colorScheme.onBackground,
                             )
                         }
                     },
                 ) {
-                    ScrimMenuItem("刷新", MaterialSymbols.Outlined.Refresh) {
+                    ScrimMenuItem("刷新", OutlinedIcons.Refresh) {
                         menuOpen = false
                         refreshKey++
                     }
-                    ScrimMenuItem("转到顶部", MaterialSymbols.Outlined.Vertical_align_top) {
+                    ScrimMenuItem("转到顶部", OutlinedIcons.Vertical_align_top) {
                         menuOpen = false
                         scope.launch { listState.animateScrollToItem(0) }
                     }
-                    ScrimMenuItem("转到底部", MaterialSymbols.Outlined.Vertical_align_bottom) {
+                    ScrimMenuItem("转到底部", OutlinedIcons.Vertical_align_bottom) {
                         menuOpen = false
                         scope.launch {
                             val end = (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
                             listState.animateScrollToItem(end)
                         }
                     }
-                    ScrimMenuItem("清空", MaterialSymbols.Outlined.Delete_sweep) {
+                    ScrimMenuItem("清空", OutlinedIcons.Delete_sweep) {
                         menuOpen = false
                         scope.launch {
                             withContext(Dispatchers.IO) {
@@ -571,7 +568,8 @@ private fun LogTabContent(
                 overscrollEffect = null,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                item(key = "picker-gap") { Spacer(Modifier.height(4.dp)) }
+                // 顶部文件选择行与第一张卡片之间留一点呼吸：贴太近会像同一条。
+                item(key = "picker-gap") { Spacer(Modifier.height(12.dp)) }
 
                 if (files.isEmpty()) {
                     // Only announce "no logs" once listing has finished, so it doesn't flash under the spinner.
@@ -789,25 +787,28 @@ private fun FilePill(
         anchor = {
             Row(
                 modifier = Modifier
+                    // 去掉胶囊底：左上角只留文件名 + 展开箭头，与右侧图标同一层视觉。
                     .clip(RoundedCornerShape(50))
-                    .background(WxPalette.insetSurface())
                     .clickable { expanded = true }
-                    .padding(start = 12.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
+                    .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = names.getOrNull(selectedIndex) ?: "选择日志文件",
-                    fontSize = 12.sp,
+                    // 与右侧那排 24dp 图标视觉齐高：13sp 时明显偏小，像一行说明文字。
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
                     color = WxPalette.textPrimary(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 148.dp),
+                    // 右边还有空余，不需要为了省位置提前截断。
+                    modifier = Modifier.widthIn(max = 240.dp),
                 )
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Expand_more,
+                    imageVector = OutlinedIcons.Expand_more,
                     contentDescription = "选择日志文件",
                     tint = WxPalette.textTertiary(),
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         },
@@ -819,7 +820,7 @@ private fun FilePill(
                 trailing = if (index == selectedIndex) {
                     {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Check,
+                            imageVector = OutlinedIcons.Check,
                             contentDescription = "当前显示",
                             tint = WxPalette.Primary,
                             modifier = Modifier.size(18.dp),
@@ -891,7 +892,7 @@ private fun RunLogCard(entry: RunLogEntry) {
                         modifier = Modifier.size(28.dp),
                     ) {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Expand_more,
+                            imageVector = OutlinedIcons.Expand_more,
                             contentDescription = if (expanded) "折叠" else "展开",
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier

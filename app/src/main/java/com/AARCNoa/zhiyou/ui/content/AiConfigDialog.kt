@@ -34,9 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Chevron_right
 import com.AARCNoa.zhiyou.features.ai.AiConfig
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.android.showToast
@@ -229,7 +228,7 @@ fun AiConfigDialogContent(
                         color = WxPalette.Accent,
                     )
                     Icon(
-                        imageVector = MaterialSymbols.Outlined.Chevron_right,
+                        imageVector = OutlinedIcons.Chevron_right,
                         contentDescription = null,
                         tint = WxPalette.Accent,
                         modifier = Modifier.size(16.dp),
@@ -470,7 +469,7 @@ fun AiConfigStatusRow(
             color = WxPalette.Accent,
         )
         Icon(
-            imageVector = MaterialSymbols.Outlined.Chevron_right,
+            imageVector = OutlinedIcons.Chevron_right,
             contentDescription = null,
             tint = WxPalette.Accent,
             modifier = Modifier.size(16.dp),

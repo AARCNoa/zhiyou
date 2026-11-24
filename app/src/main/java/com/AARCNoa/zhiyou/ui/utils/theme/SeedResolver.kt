@@ -14,7 +14,7 @@ import com.AARCNoa.zhiyou.ui.utils.theme.SeedResolver.customSeed
 /**
  * Single source of truth for turning [ThemeSettings] into a concrete accent seed and the derived
  * Material 3 / miuix color schemes. Shared by [ModuleTheme], [com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme], and
- * [com.AARCNoa.zhiyou.features.items.beautify.MonetEngine] so the module UI, the WeKit UI injected
+ * [com.AARCNoa.zhiyou.features.items.beautify.MonetEngine] so the module UI, the UI injected
  * into WeChat, and the native-view recoloring all agree on the same colors.
  */
 object SeedResolver {

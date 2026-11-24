@@ -43,17 +43,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.edit
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Build
-import com.composables.icons.materialsymbols.outlined.Chat
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Visibility
-import com.composables.icons.materialsymbols.outlined.Visibility_off
-import com.composables.icons.materialsymbols.outlinedfilled.Check_circle
-import com.composables.icons.materialsymbols.outlinedfilled.More_vert
-import com.composables.icons.materialsymbols.outlinedfilled.Warning
 import com.topjohnwu.superuser.Shell
 import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.constants.PackageNames
@@ -63,6 +52,8 @@ import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.ScrimDropdownMenu
 import com.AARCNoa.zhiyou.ui.content.ScrimMenuItem
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.GitHubIcon
 import com.AARCNoa.zhiyou.ui.utils.theme.ThemeSettings
 import com.AARCNoa.zhiyou.ui.utils.theme.darkScheme
@@ -249,7 +240,7 @@ class MainActivity : ComponentActivity() {
                             anchor = {
                                 IconButton(onClick = { showMenu = true }) {
                                     Icon(
-                                        MaterialSymbols.OutlinedFilled.More_vert,
+                                        FilledIcons.More_vert,
                                         contentDescription = "Menu"
                                     )
                                 }
@@ -288,7 +279,7 @@ class MainActivity : ComponentActivity() {
                 SectionTitle("快捷操作")
                 WhiteCard {
                     ListRow(
-                        icon = MaterialSymbols.Outlined.Settings,
+                        icon = OutlinedIcons.Settings,
                         title = "打开模块设置",
                         subtitle = "打开微信内的模块设置",
                         onClick = {
@@ -310,14 +301,14 @@ class MainActivity : ComponentActivity() {
                 SectionTitle("模块管理")
                 WhiteCard {
                     ListRow(
-                        icon = MaterialSymbols.Outlined.Build,
+                        icon = OutlinedIcons.Build,
                         title = "修复模块加载",
                         subtitle = "清除微信热更新缓存，修复模块不加载",
                         onClick = { showConfirmDeleteTinkerDialog = true },
                     )
                     SoftDivider()
                     ListRow(
-                        icon = MaterialSymbols.Outlined.Delete,
+                        icon = OutlinedIcons.Delete,
                         title = "清除模块数据",
                         subtitle = "删除模块功能配置，用于解决闪退",
                         onClick = { showConfirmDeleteModuleDataDialog = true },
@@ -325,9 +316,9 @@ class MainActivity : ComponentActivity() {
                     SoftDivider()
                     ListRow(
                         icon = if (isLauncherIconEnabled) {
-                            MaterialSymbols.Outlined.Visibility_off
+                            OutlinedIcons.Visibility_off
                         } else {
-                            MaterialSymbols.Outlined.Visibility
+                            OutlinedIcons.Visibility
                         },
                         title = if (isLauncherIconEnabled) "隐藏桌面图标" else "显示桌面图标",
                         // 主 Activity 声明了 xposed 的 MODULE_SETTINGS，桌面图标关掉后
@@ -345,7 +336,7 @@ class MainActivity : ComponentActivity() {
                     )
                     SoftDivider()
                     ListRow(
-                        icon = MaterialSymbols.Outlined.Edit,
+                        icon = OutlinedIcons.Edit,
                         title = "设置宿主包名",
                         subtitle = hostPkg,
                         onClick = { showModifyHostPkgNameDialog = true },
@@ -510,7 +501,7 @@ class MainActivity : ComponentActivity() {
                 SectionTitle("相关链接")
                 WhiteCard {
                     ListRow(
-                        icon = MaterialSymbols.Outlined.Chat,
+                        icon = OutlinedIcons.Chat,
                         title = "交流群组",
                         subtitle = GROUP_URL.removePrefix("https://"),
                         onClick = {
@@ -562,7 +553,9 @@ class MainActivity : ComponentActivity() {
                     title = { Text(text = "关于") },
                     text = {
                         Column {
-                            Text("${BuildConfig.BRAND} 是一款基于 Xposed 框架的免费微信增强模块")
+                            Text("${BuildConfig.BRAND} 是一款基于 Xposed 的免费微信增强模块")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("让 AI 帮你管理好友记忆、标签，总结群聊。")
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("版本: ${BuildConfig.VERSION_NAME}")
                         }
@@ -697,9 +690,9 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Icon(
                             imageVector = if (state.isActivated) {
-                                MaterialSymbols.OutlinedFilled.Check_circle
+                                FilledIcons.Check_circle
                             } else {
-                                MaterialSymbols.OutlinedFilled.Warning
+                                FilledIcons.Warning
                             },
                             contentDescription = null,
                             tint = state.color,

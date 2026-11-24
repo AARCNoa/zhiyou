@@ -53,7 +53,7 @@ object RemoveChatMessageContextMenuItems : ClickableFeature(), IResolveDex {
 
             @Suppress("UNCHECKED_CAST")
             (list as MutableList<Any?>).removeAll { item ->
-                // WeKit's own injected items carry a " [K]" suffix so they never match here
+                // 模块自己注入的菜单项带 " [K]" 后缀，不会出现在待删名单里
                 val title = (item as? MenuItem)?.title?.toString()?.trim()
                 title != null && removedNames.contains(title)
             }

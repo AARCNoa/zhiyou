@@ -19,9 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Delete
 import com.AARCNoa.zhiyou.features.api.core.WeApi
 import com.AARCNoa.zhiyou.features.api.core.WeContactApi
 import com.AARCNoa.zhiyou.features.api.core.WeContactLabelApi
@@ -37,6 +34,7 @@ import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
@@ -123,9 +121,8 @@ object DetectDeletedFriends : ClickableFeature() {
                                     WeLogger.d(TAG, "realName=$realName")
                                     if (realName == null) {
                                         synchronized(abnormalFriends) {
-                                            // TODO: figure out status, might have to perform another request
-                                            //       update: seems that wechat modified their server-side logic
-                                            //       now it is impossible to tell the difference
+                                            // 服务端已不再返回能区分「已删除」与「仅隐藏」的状态，
+                                            // 取不到实名就按异常好友计数：宁可多报，不漏报。
                                             abnormalFriends += friend
                                         }
                                     }
@@ -263,7 +260,7 @@ object DetectDeletedFriends : ClickableFeature() {
                                                 )
                                             }) {
                                                 Icon(
-                                                    MaterialSymbols.Outlined.Delete,
+                                                    OutlinedIcons.Delete,
                                                     contentDescription = "删除",
                                                     modifier = Modifier.size(24.dp)
                                                 )
@@ -323,7 +320,7 @@ object DetectDeletedFriends : ClickableFeature() {
                                                 },
                                                 leadingContent = {
                                                     Icon(
-                                                        MaterialSymbols.Outlined.Add,
+                                                        OutlinedIcons.Add,
                                                         contentDescription = "新建标签",
                                                         modifier = Modifier.size(24.dp)
                                                     )

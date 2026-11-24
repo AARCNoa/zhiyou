@@ -1,7 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.chat_input_bar_menu
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Voice_chat
 
 import com.AARCNoa.zhiyou.features.api.ui.WeChatInputBarMenuApi
 import com.AARCNoa.zhiyou.features.api.ui.WeCurrentConversationApi
@@ -9,6 +7,7 @@ import com.AARCNoa.zhiyou.features.core.Feature
 
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.features.items.chat.panel.selectAndSendVoice
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 @Feature(
     name = "发送语音文件",
@@ -21,7 +20,7 @@ object SendVoiceFile : SwitchFeature() {
         listOf(
             WeChatInputBarMenuApi.ActionItem(
                 id = "send_voice_file",
-                icon = MaterialSymbols.Outlined.Voice_chat,
+                icon = OutlinedIcons.Voice_chat,
                 label = ("发送语音文件"),
                 onClick = { context, _ ->
                     selectAndSendVoice(context, WeCurrentConversationApi.value)

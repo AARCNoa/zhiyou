@@ -36,9 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Check_circle
-import com.composables.icons.materialsymbols.outlined.Search
 import com.AARCNoa.zhiyou.ai.AiFriend
 import com.AARCNoa.zhiyou.ai.AiFriends
 import com.AARCNoa.zhiyou.ai.AiProfile
@@ -46,6 +43,7 @@ import com.AARCNoa.zhiyou.ai.AiProfileState
 import com.AARCNoa.zhiyou.ai.AiProfileStore
 import com.AARCNoa.zhiyou.ui.content.BottomSheetHost
 import com.AARCNoa.zhiyou.ui.content.SheetTextAction
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -217,7 +215,7 @@ private fun SearchBox(query: String, onQueryChange: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = MaterialSymbols.Outlined.Search,
+            imageVector = OutlinedIcons.Search,
             contentDescription = null,
             tint = WxPalette.textTertiary(),
             modifier = Modifier.size(18.dp),
@@ -270,7 +268,7 @@ private fun PickerRow(friend: AiFriend, checked: Boolean, onClick: () -> Unit) {
             }
         }
         Icon(
-            imageVector = MaterialSymbols.Outlined.Check_circle,
+            imageVector = OutlinedIcons.Check_circle,
             contentDescription = null,
             tint = if (checked) WxPalette.Primary else WxPalette.textTertiary().copy(alpha = 0.4f),
             modifier = Modifier.size(22.dp),

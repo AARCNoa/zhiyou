@@ -5,13 +5,11 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Search
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 /**
  * 全局统一的搜索框：左侧放大镜 + 右侧关闭/清空。
@@ -35,7 +33,7 @@ fun SearchField(
         label = label,
         leadingIcon = {
             Icon(
-                imageVector = MaterialSymbols.Outlined.Search,
+                imageVector = OutlinedIcons.Search,
                 contentDescription = null,
                 modifier = Modifier.padding(horizontal = 12.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -44,7 +42,7 @@ fun SearchField(
         trailingIcon = {
             IconButton(onClick = onClose) {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Close,
+                    imageVector = OutlinedIcons.Close,
                     contentDescription = closeDescription,
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )

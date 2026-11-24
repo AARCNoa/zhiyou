@@ -27,8 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Chevron_right
 
 import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import com.tencent.mm.ui.LauncherUI
@@ -36,6 +34,7 @@ import com.tencent.mm.ui.chatting.ChattingUI
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.isSubclassOf
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
+import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.api.core.WeConversationApi
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
@@ -65,6 +64,7 @@ import com.AARCNoa.zhiyou.ui.content.m3.BaseWidget
 import com.AARCNoa.zhiyou.ui.content.m3.SegmentedColumn
 import com.AARCNoa.zhiyou.ui.content.m3.SwitchWidget
 import com.AARCNoa.zhiyou.ui.content.m3.TextFieldDialogWidget
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.HostInfo
 import com.AARCNoa.zhiyou.utils.WeLogger
@@ -724,7 +724,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      * because the row's talker is the *chat*, not the patter.
      *
      * The substituted return value is the method's own no-op result (`Pair.create(0L, 0L)`, taken
-     * from its `t8.N0(...)` guard at `nq3/l.java:568` / `ti3/l.java:266`), so every caller sees a
+     * from its `t8.N0(...)` guard at `nq3/l.java` / `ti3/l.java`), so every caller sees a
      * shape it already handles: msgId 0 means "nothing was inserted".
      *
      * Only `fromUser` is tested. `talker` is the conversation the pat lands in, and a hidden
@@ -796,7 +796,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
                             },
                             trailingContent = {
                                 Icon(
-                                    MaterialSymbols.Outlined.Chevron_right,
+                                    OutlinedIcons.Chevron_right,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -809,7 +809,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
                             onClick = { showSchedulesDialog(context) },
                             trailingContent = {
                                 Icon(
-                                    MaterialSymbols.Outlined.Chevron_right,
+                                    OutlinedIcons.Chevron_right,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -883,7 +883,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      *
      * `AtSomeoneLiveList` declares only `<init>`, `c()` (the log tag) and `e(List)`, and `"snapshotList"`
      * is the `o.g(...)` null-check literal that only `e` carries — unambiguous on 8.0.76
-     * (`ui/chatting/atsomeone/AtSomeoneLiveList.java:35-36`) and on 8.0.69 (same file, same lines).
+     * (`ui/chatting/atsomeone/AtSomeoneLiveList.java`) and on 8.0.69 (same file, same lines).
      *
      * `allowFailure` because this is a single opt-in surface: if the class is renamed on some version
      * in 8.0.65–8.0.76 we want the @成员 list to stay unfiltered, not to fail dex resolution for the
@@ -901,7 +901,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      *
      * Among the classes that carry the `"MicroMsg.SeeRoomMemberUI"` tag (the Activity itself plus its
      * adapter and three listeners) exactly one declares a `void (List)` method: the adapter, at
-     * `chatroom/ui/cc.java:96` on 8.0.76 and `chatroom/ui/tc.java:95` on 8.0.69.
+     * `chatroom/ui/cc.java` on 8.0.76 and `chatroom/ui/tc.java` on 8.0.69.
      */
     internal val methodSeeRoomMemberSetMemberList by dexMethod(allowFailure = true) {
         matcher {
@@ -918,7 +918,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      * from (`j7()` on 8.0.69).
      *
      * The class name is real, and it declares exactly one no-argument `List`-returning method on both
-     * trees (`chatroom/ui/SelectMemberUI.java:115` on 8.0.76, `:178` on 8.0.69), so class + arity +
+     * trees (`chatroom/ui/SelectMemberUI.java` on 8.0.76, `:178` on 8.0.69), so class + arity +
      * return type is unambiguous without needing the obfuscated method name.
      */
     internal val methodSelectMemberUiGetMemberList by dexMethod(allowFailure = true) {
@@ -935,7 +935,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      * `"MicroMsg.FavoriteAdapter"` occurs in exactly one class app-wide
      * (`plugin/fav/ui/adapter/c.java` on both trees). That class declares two `void (List)` methods —
      * `d(List)` and `r(List)` — and only `r` uses the tag (in its catch block,
-     * `c.java:1054` on 8.0.76 / `c.java:1051` on 8.0.69), so the tag + shape pair resolves to `r`
+     * `c.java` on 8.0.76 / `c.java` on 8.0.69), so the tag + shape pair resolves to `r`
      * alone. `d(List)` uses no string constants at all.
      */
     internal val methodFavoriteAdapterSetDataList by dexMethod(allowFailure = true) {
@@ -948,7 +948,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
 
     /**
      * The 视频号 like-drawer *refresh* callback — `jd.call(Object)` on 8.0.76
-     * (`plugin/finder/feed/jd.java:50`), `zc.call(Object)` on 8.0.69.
+     * (`plugin/finder/feed/jd.java`), `zc.call(Object)` on 8.0.69.
      *
      * Two methods on each tree pair `"Finder.DrawerPresenter"` with `"[refreshData] Cost="`
      * (8.0.76: `feed/jd` + `feed/s5`; 8.0.69: `feed/zc` + `feed/t5`) — the like drawer and the
@@ -965,8 +965,59 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
     }
 
     /**
+     * 8.0.80 起的 like-drawer *refresh* 回调。
+     *
+     * 8.0.80 把两个 builder 类名从回调方法里移走了（`FinderTimelineDrawerBuilder` 整个消失，
+     * `FinderLikeDrawerBuilder` 只剩在 `t53/n` 那几个方法里），上面那条锚点的两条串交叉命中为 0，
+     * 容器页/抽屉都还在，只是定位不到回调。
+     *
+     * 改用结构判据：点赞回调在遍历条目时会调 `FinderItem.getUnsignedId()` 给每条打 feed id
+     * （和 load-more 那条锚点同一个标志），评论回调不调。`FinderItem` 是未混淆的保留类，
+     * 方法名跨版本稳定。
+     *
+     * 8.0.80 实测：`Finder.DrawerPresenter` + `[refreshData] Cost=` 命中 `feed/fd`（点赞，参数类
+     * `feed/hc`，`b` 是 LinkedList）与 `feed/b6`（评论，参数类 `feed/m2`，`b` 是 List）两条；
+     * 再加 `getUnsignedId` 后唯一命中 `feed/fd`。
+     */
+    internal val methodFinderLikeDrawerRefresh80 by dexMethod(allowFailure = true) {
+        matcher {
+            usingEqStrings("Finder.DrawerPresenter", "[refreshData] Cost=")
+            paramTypes("java.lang.Object")
+            returnType("java.lang.Object")
+            invokeMethods {
+                add { name = "getUnsignedId" }
+                matchType = MatchType.Contains
+            }
+        }
+    }
+
+    /**
+     * 两代 refresh 锚点的择一入口：老版本用 builder 串那条，8.0.80+ 用结构判据那条。
+     *
+     * 不做成第三个 `by dexMethod` 委托，否则自检里会常年多一条失效锚点。
+     */
+    internal val finderLikeDrawerRefresh: DexMethodDelegate
+        get() = if (!methodFinderLikeDrawerRefresh.isPlaceholder) {
+            methodFinderLikeDrawerRefresh
+        } else {
+            methodFinderLikeDrawerRefresh80
+        }
+
+    override val supersededAnchors: Map<String, String>
+        get() = when {
+            // 老锚点在当前版本还能用：两条都不算失效。
+            !methodFinderLikeDrawerRefresh.isPlaceholder -> emptyMap()
+            // 两条都解析不到：是真的缺失，别登记成「已替代」把问题盖掉。
+            methodFinderLikeDrawerRefresh80.isPlaceholder -> emptyMap()
+            else -> mapOf(
+                "HideContacts:methodFinderLikeDrawerRefresh" to
+                    "8.0.80 起改用 DrawerPresenter + refreshData + getUnsignedId 定位，已由 methodFinderLikeDrawerRefresh80 覆盖"
+            )
+        }
+
+    /**
      * The 视频号 like-drawer *load-more* callback — `yc.call(Object)` on 8.0.76
-     * (`plugin/finder/feed/yc.java:31`), `sc.call(Object)` on 8.0.69.
+     * (`plugin/finder/feed/yc.java`), `sc.call(Object)` on 8.0.69.
      *
      * `"Finder.DrawerPresenter"` + `"[loadMoreData] empty!"` matches two methods per tree (8.0.76:
      * `feed/yc` + `feed/v3`; 8.0.69: `feed/sc` + `feed/x3`). Unlike the refresh callback there is no
@@ -989,7 +1040,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      * `fts.logic.q0.p(FTSResult)` — SearchChatroomMemberTask's body, the 群聊内搜索成员 task.
      *
      * `"SearchChatroomMemberTask"` is its `getName()` return value and occurs in exactly one class
-     * app-wide on both trees (8.0.76 `plugin/fts/logic/q0.java:25`, 8.0.69 same path `:25`). That
+     * app-wide on both trees (8.0.76 `plugin/fts/logic/q0.java`, 8.0.69 same path `:25`). That
      * class declares only `<init>(l, FTSRequest)`, `getName()` and `p(FTSResult)`, so class anchor +
      * one parameter + `void` resolves to `p` alone. See hidecontacts/HideContactsSearch.kt.
      */
@@ -1008,7 +1059,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      *
      * Same shape argument as [methodFtsSearchChatroomMemberTask]:
      * `"SearchCommonChatroomUserTask"` occurs in one class only (8.0.76
-     * `plugin/fts/logic/h.java:30`, 8.0.69 same path `:30`), which declares `<init>(k, FTSRequest)`,
+     * `plugin/fts/logic/h.java`, 8.0.69 same path `:30`), which declares `<init>(k, FTSRequest)`,
      * `getName()` and `p(FTSResult)`. NB: the neighbouring tasks `g` and `s0` both report
      * `"SearchCommonChatroomTask"` — the `User` suffix is what makes this one unambiguous.
      */
@@ -1024,12 +1075,12 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
 
     /**
      * `ContactStorage.getNormalContactCount(boolean includeBlack, String[], String...) -> int`
-     * (`j4.O` on 8.0.76 `storage/j4.java:460`, `l3.O` on 8.0.69 `storage/l3.java:434`) — the
+     * (`j4.O` on 8.0.76 `storage/j4.java`, `l3.O` on 8.0.69 `storage/l3.java`) — the
      * 通讯录 「N 位联系人」 footer.
      *
      * The log format string is unique to this method on both trees. Its result is adjusted rather
      * than its SQL rewritten: the statement ends in a bare `or username = 'weixin'`
-     * (`j4.java:487` / `l3.java:461`), so an appended `AND ...` would bind to that OR's right
+     * (`j4.java` / `l3.java`), so an appended `AND ...` would bind to that OR's right
      * operand and silently do nothing. See hidecontacts/HideContactsLists.kt.
      */
     internal val methodNormalContactCount by dexMethod(allowFailure = true) {
@@ -1044,10 +1095,10 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
     /**
      * `PatMsgExtension.insertPatMsg(String talker, String fromUser, String pattedUser, String
      * suffix, int createTime, long svrId) -> android.util.Pair` — 拍一拍
-     * (`nq3/l.java:560` on 8.0.76, `ti3/l.java:260` on 8.0.69).
+     * (`nq3/l.java` on 8.0.76, `ti3/l.java` on 8.0.69).
      *
-     * `"insert pat msg %d %s %s"` appears in exactly one method per tree (`nq3/l.java:620`,
-     * `ti3/l.java:320`); pairing it with the class tag keeps the match method-local.
+     * `"insert pat msg %d %s %s"` appears in exactly one method per tree (`nq3/l.java`,
+     * `ti3/l.java`); pairing it with the class tag keeps the match method-local.
      */
     internal val methodPatMsgInsert by dexMethod(allowFailure = true) {
         matcher {
@@ -1081,7 +1132,7 @@ object HideContacts : ClickableFeature(), IResolveDex, WeChatInputBarApi.IInputB
      * and every other hidden-contact surface would silently stop working.
      *
      * The narrower pair is still unambiguous: `"updateSyncDataCache"` occurs nowhere in the app
-     * except inside this one method (8.0.76 `c3.java:106`/`:141`, 8.0.69 `c3.java:103`/`:111`), and
+     * except inside this one method (8.0.76 `c3.java`/`:141`, 8.0.69 `c3.java`/`:111`), and
      * every user of it necessarily also carries the class-name constant from the same call. The
      * method shape — `static void (c3, SnsObject)` — is identical on both trees, so the hook body
      * needs no per-version branching.

@@ -66,7 +66,7 @@ object WeChatMessageViewApi : ApiFeature(), IResolveDex {
 
     private const val TAG = "WeChatMessageViewApi"
 
-    // 锚点修正（2026-11-06，8.0.79 / 8.0.80 双版本逐串验证）：
+    // 锚点修正（8.0.79 / 8.0.80 双版本逐串验证）：
     //  · 旧锚点里的 "[onBindView]" 是**孤儿串** —— 两版 APK 里实际只存在
     //    "[onBindView] finish position:" / "[onBindView] never attach!" 这类更长串，
     //    DexKit 按字符串常量精确匹配，旧串恒命中不到，导致整个消息 View 监听服务不工作

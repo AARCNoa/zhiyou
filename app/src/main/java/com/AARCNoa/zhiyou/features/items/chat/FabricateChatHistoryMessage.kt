@@ -34,11 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Person_search
-import com.composables.icons.materialsymbols.outlined.Schedule
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.models.IWeContact
@@ -50,6 +45,7 @@ import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.SingleContactSelector
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
@@ -258,7 +254,7 @@ private fun ChatRecordXmlGeneratorDialog(
                             rows.add(MessageRowState(initialTimeMillis = nextTime))
                         }
                     ) {
-                        Icon(MaterialSymbols.Outlined.Add, contentDescription = "Add message")
+                        Icon(OutlinedIcons.Add, contentDescription = "Add message")
                     }
                 }
 
@@ -376,14 +372,14 @@ private fun MessageRowEditor(
                 }
 
                 IconButton(onClick = onPickSender) {
-                    Icon(MaterialSymbols.Outlined.Person_search, contentDescription = "Select sender")
+                    Icon(OutlinedIcons.Person_search, contentDescription = "Select sender")
                 }
 
                 IconButton(
                     onClick = onRemove,
                     enabled = true
                 ) {
-                    Icon(MaterialSymbols.Outlined.Delete, contentDescription = "Remove message")
+                    Icon(OutlinedIcons.Delete, contentDescription = "Remove message")
                 }
             }
 
@@ -417,7 +413,7 @@ private fun MessageRowEditor(
                             }
                         }
                     ) {
-                        Icon(MaterialSymbols.Outlined.Schedule, contentDescription = "Pick Date Time")
+                        Icon(OutlinedIcons.Schedule, contentDescription = "Pick Date Time")
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default)

@@ -55,6 +55,9 @@ object AiSuggestEngine {
      */
     private const val TODAY_MIN_LINES = 4
 
+    /** 注入提示词的「已记过未读事件」上限，见 [suggest] 里的 reportedEvents。 */
+    private const val MAX_REPORTED_EVENTS = 10
+
     data class Suggestion(
         val read: String = "",
         val replies: List<String> = emptyList(),
@@ -80,10 +83,13 @@ object AiSuggestEngine {
     /**
      * 生成解读 + 三条回复。阻塞调用（查库 + HTTP + 工具），放在后台线程。
      *
+     * @param reportEvent 自动回复专用：多给一个 `report_important_event`，让模型把说定的约定
+     *   记进总览。手动双击建议不传 —— 那时用户就在看着，不需要另开一条提醒。
      * @param shouldStop 调用方是否已经不需要结果（浮层被关掉、点了刷新）：每轮开始与收口前各查一次。
      */
     fun suggest(
         wxId: String,
+        reportEvent: Boolean = false,
         shouldStop: () -> Boolean = { false },
     ): Suggestion {
         val profile = AiProfileStore.readProfile(wxId)
@@ -114,7 +120,21 @@ object AiSuggestEngine {
         // 默认只注入最近半年，交付标记让「取更早的记忆」不会把同一批条目灌两遍。
         val memoryPager = AiMemoryView.pager(profile)
 
-        val system = AiPrompts.suggestSystem(profile)
+        val system = AiPrompts.suggestSystem(profile, reportEvent = reportEvent)
+        // 自动回复：把**今天已经记过的事**带进提示词。
+        // 模型每次只看得到聊天记录，不知道上一轮记过什么，同一件事会被逐条消息反复提交。
+        // 用「今天」而不是「未读」：用户点开总览后红点清零，若按未读注入就会重新记一遍；
+        // 只有用户手动清空，这些标题才会从提示词里消失。
+        val reportedEvents = if (reportEvent) {
+            runCatching {
+                AiOverviewStore.todayEventsOf(wxId)
+                    // 一天可能记很多条，只带最近的：早的事模型看最近几条就足以判断「这件记过了」。
+                    .takeLast(MAX_REPORTED_EVENTS)
+                    .map { it.title }
+            }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
         // 开了「识别图片」就把**触发这次的这张图**挂到 user 消息上。读不到（还没落盘）
         // 就跳过，transcript 里仍是 `[图片]` 占位 —— 不为一张图卡住整次建议。
         val imageUrls = if (AiConfig.recognizeImages) {
@@ -132,13 +152,15 @@ object AiSuggestEngine {
                     dayLabel = dayLabel,
                     samples = styleSamples(slice.lines),
                     hasImage = imageUrls.isNotEmpty(),
+                    reportedEvents = reportedEvents,
                 ),
                 images = imageUrls,
             ),
         )
         // 只读：建议过程绝不写档案。给 update_profile 等于允许模型在生成回复时
         // 顺手改标签与记忆，且用户完全看不到这次修改。
-        val tools = AiTools.forSuggest()
+        // 自动回复例外：多一个只写总览的 report_important_event，档案仍然只读。
+        val tools = if (reportEvent) AiTools.forAutoReply() else AiTools.forSuggest()
         // 说话类请求：用设置页的「说话温度」（默认 0.9）。
         val temperature = AiConfig.temperature
 
@@ -230,6 +252,7 @@ object AiSuggestEngine {
 
         AiTools.GET_CHAT_HISTORY -> "翻更早的聊天记录"
         AiTools.LOAD_EARLIER_MEMORIES -> "翻更早的记忆"
+        AiTools.REPORT_IMPORTANT_EVENT -> "记入总览"
         else -> "调用 " + call.name
     }
 
@@ -265,38 +288,18 @@ object AiSuggestEngine {
         if (raw.isBlank()) return Suggestion(error = "模型返回为空")
         val trimmed = raw.trim()
 
-        candidateObjects(trimmed).forEach { candidate ->
+        AiJson.candidates(trimmed).forEach { candidate ->
             val parsed = runCatching { json.parseToJsonElement(candidate).jsonObject }.getOrNull()
                 ?: return@forEach
-            val read = parsed["read"]?.jsonPrimitive?.contentOrNull.orEmpty()
-            val replies = runCatching {
-                parsed["replies"]?.jsonArray?.mapNotNull {
-                    it.jsonPrimitive.contentOrNull
-                        ?.let(::oneLine)
-                        ?.takeIf { text -> text.isNotEmpty() }
-                }.orEmpty()
-            }.getOrElse { emptyList() }
+            val read = AiJson.str(parsed, "read")
+            val replies = AiJson.strings(parsed, "replies").map(::oneLine)
             if (read.isNotBlank() || replies.isNotEmpty()) {
                 return Suggestion(read = read, replies = replies.take(3))
             }
         }
 
         WeLogger.d(TAG, "返回不是预期 JSON，按纯文本处理：" + trimmed.take(80))
-        return Suggestion(read = stripFence(trimmed).take(120), replies = emptyList())
+        return Suggestion(read = AiJson.stripFence(trimmed).take(120), replies = emptyList())
     }
 
-    private fun stripFence(raw: String): String = raw.trim()
-        .removePrefix("```json").removePrefix("```JSON").removePrefix("```")
-        .removeSuffix("```").trim()
-
-    private fun candidateObjects(raw: String): List<String> {
-        val out = mutableListOf<String>()
-        out += raw
-        val stripped = stripFence(raw)
-        if (stripped != raw) out += stripped
-        val start = raw.indexOf('{')
-        val end = raw.lastIndexOf('}')
-        if (start in 0 until end) out += raw.substring(start, end + 1)
-        return out
-    }
 }

@@ -53,6 +53,7 @@ import com.tencent.mm.pluginsdk.ui.chat.ChattingUILayout
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.toClass
 
+import com.AARCNoa.zhiyou.ui.utils.statusBarHeight
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.core.ClickableFeature
@@ -2328,11 +2329,7 @@ object FloatingChatHeader : ClickableFeature(), IResolveDex {
             }
         }.getOrDefault(0)
         if (fromInsets > 0) return fromInsets
-        return runCatching {
-            val res = view.resources
-            val id = res.getIdentifier("status_bar_height", "dimen", "android")
-            if (id != 0) res.getDimensionPixelSize(id) else 0
-        }.getOrDefault(0)
+        return view.context.statusBarHeight()
     }
 
     // ---- 状态栏 edge-to-edge ----

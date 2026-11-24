@@ -47,12 +47,11 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.ui.utils.findViewWhich
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete
 import com.tencent.mm.plugin.sns.ui.SnsUserUI
 import com.tencent.mm.plugin.sns.ui.improve.ImproveSnsTimelineUI
 import com.tencent.mm.view.recyclerview.WxRecyclerView
@@ -481,7 +480,7 @@ object MomentsKeywordFilter : ClickableFeature() {
                                                         localGroups.remove(group)
                                                     }) {
                                                         Icon(
-                                                            imageVector = MaterialSymbols.Outlined.Delete,
+                                                            imageVector = OutlinedIcons.Delete,
                                                             contentDescription = "删除",
                                                             tint = MaterialTheme.colorScheme.error
                                                         )

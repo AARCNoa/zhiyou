@@ -40,7 +40,7 @@ internal fun HideContacts.installSearchHooks() {
  * The task leaves its output as `result.entries[0].members` — one search entry per matched chatroom,
  * each carrying the list of matched member entries. Both hops are located structurally: the result
  * holder and the search entry each declare exactly one `java.util.List` field on both trees
- * (8.0.76 `j23/v.java:22` + `j23/y.java:42`, 8.0.69 `ov2/v.java:22` + `ov2/y.java:42`).
+ * (8.0.76 `j23/v.java` + `j23/y.java`, 8.0.69 `ov2/v.java` + `ov2/y.java`).
  */
 private fun HideContacts.installChatroomMemberSearchHook() {
     if (methodFtsSearchChatroomMemberTask.isPlaceholder) {
@@ -72,7 +72,7 @@ private fun HideContacts.installChatroomMemberSearchHook() {
  * 共同群聊的好友建议 (`SearchCommonChatroomUserTask.p`).
  *
  * Every suggestion is one search entry whose key field holds the suggested contact's wxid
- * (8.0.76 `fts/logic/h.java:99`, 8.0.69 `h.java:100`), so here the *entries themselves* are dropped
+ * (8.0.76 `fts/logic/h.java`, 8.0.69 `h.java`), so here the *entries themselves* are dropped
  * rather than a nested list.
  */
 private fun HideContacts.installCommonChatroomUserSearchHook() {

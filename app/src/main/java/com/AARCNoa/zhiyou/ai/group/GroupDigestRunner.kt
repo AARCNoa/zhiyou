@@ -145,8 +145,23 @@ object GroupDigestRunner {
             todos = parsed.todos,
             messageCount = transcript.lines.size,
             manual = manual,
+            task = parsed.task,
+            progress = parsed.progress,
         )
-        val saved = GroupDigestStore.update(groupId) { it.withDigest(digest) }
+        // 任务与摘要同一次写入：状态和实际产出不能分两次落盘，否则列表会先看到旧任务。
+        val saved = GroupDigestStore.update(groupId) { current ->
+            val next = current.withDigest(digest)
+            if (!next.workGroup) {
+                // 用户在总结期间关掉了工作群：不要把任务写回去，否则列表会继续显示已关闭的进度。
+                next.copy(currentTask = "", currentProgress = -1, currentTaskAt = 0L)
+            } else {
+                next.copy(
+                    currentTask = parsed.task,
+                    currentProgress = if (parsed.task.isBlank()) -1 else parsed.progress,
+                    currentTaskAt = if (parsed.task.isBlank()) 0L else nowMs,
+                )
+            }
+        }
         return if (saved != null) {
             WeLogger.i(
                 TAG,
@@ -169,18 +184,10 @@ object GroupDigestRunner {
     ): GroupDigestPrompts.Parsed? {
         if (chunks.isEmpty()) return null
 
-        // 单片：一次请求直接出摘要。
-        if (chunks.size == 1) {
-            val raw = call(
-                GroupDigestPrompts.system(),
-                GroupDigestPrompts.user(
-                    config.name, fromSec, toSec, GroupTranscript.transcript(chunks.first()),
-                ),
-            ) ?: return null
-            return parseOrFallback(raw)
-        }
-
-        // 多片：每片只提炼要点，最后合并。提示词里不出现片号 / 片数。
+        // 只有一条路径：每片先提炼要点，再用一次请求合成摘要。
+        // 单片也走同一条（一片 → 合并），不再维护「单片直出」那套提示词与输出格式：
+        // 两套口径的差异只在于少发一次请求，却要各写一份 system / 输出格式，很容易改一边漏一边。
+        // 提示词里不出现片号 / 片数，模型不知道自己拿到的是一片还是其中一片。
         val deadline = System.currentTimeMillis() + TOTAL_BUDGET_MS
         val sliceOutputs = mutableListOf<String>()
         for (chunk in chunks) {
@@ -211,8 +218,16 @@ object GroupDigestRunner {
         }
 
         val merged = call(
-            GroupDigestPrompts.mergeSystem(),
-            GroupDigestPrompts.mergeUser(config.name, fromSec, toSec, parts),
+            GroupDigestPrompts.mergeSystem(config.workGroup),
+            GroupDigestPrompts.mergeUser(
+                config.name,
+                fromSec,
+                toSec,
+                parts,
+                workGroup = config.workGroup,
+                previousTask = config.currentTask,
+                previousProgress = config.currentProgress,
+            ),
         ) ?: return null
         return parseOrFallback(merged)
     }

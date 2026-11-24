@@ -10,10 +10,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Alternate_email
 
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
+import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.api.core.WeApi
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
@@ -35,6 +34,7 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.ContactsSelector
 import com.AARCNoa.zhiyou.ui.content.TextButton
 import com.AARCNoa.zhiyou.ui.content.m3.SwitchWidget
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.android.runOnUiThread
 import com.AARCNoa.zhiyou.utils.android.showToast
@@ -49,7 +49,7 @@ import com.AARCNoa.zhiyou.utils.strings.isGroupChatWxId
  * 微信服务器只看 atuserlist 里的真实 wxid CSV 推送"有人@我"提醒,
  * 不要求 content 中存在 @ 文本, 因此接收方气泡内看不到任何 @ 痕迹。
  * (来自"终极隐藏艾特"插件验证的行为; 该插件对出网 protobuf 的混淆类名/
- * 字段偏移反射在 WeKit 中由入库钩子替代, 见 SendSecMsg 的同一锚点。)
+ * 字段偏移反射在本模块里由入库钩子替代, 见 SendSecMsg 的同一锚点。)
  *
  * 跨版本锚点 (8.0.65–8.0.77 混淆名各不相同, 不使用类名/方法名):
  * - 消息入库方法: MsgInfoStorage 中 "Error insert message msg:%s talker:%s"
@@ -77,8 +77,13 @@ object MentionMembers : SwitchFeature(), IResolveDex {
     @Volatile
     private var pendingStealthAt: Pair<String, String>? = null
 
-    // 消息入库方法 (文本发送 NetSceneSendMsg 构造时调用), (msgInfo, boolean) -> long
-    private val methodInsertMessage by dexMethod {
+    // 消息入库方法 (文本发送 NetSceneSendMsg 构造时调用)。
+    //
+    // 两个版本形态分开描述，不用 paramCount 硬写死一个：
+    // - 8.0.79 及更早：(MsgInfo, boolean) -> long
+    // - 8.0.80 起：    (MsgInfo, boolean, boolean) -> long（末尾多一个开关位）
+    // 同一签名在 storage 类里还有两个单参重载，所以必须带参数个数区分，不能只靠日志串。
+    private val methodInsertMessageShort by dexMethod(allowFailure = true) {
         searchPackages("com.tencent.mm.storage")
         matcher {
             usingEqStrings("Error insert message msg:%s talker:%s")
@@ -86,6 +91,41 @@ object MentionMembers : SwitchFeature(), IResolveDex {
             returnType("long")
         }
     }
+
+    private val methodInsertMessageLong by dexMethod(allowFailure = true) {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("Error insert message msg:%s talker:%s")
+            paramCount(3)
+            returnType("long")
+        }
+    }
+
+    /**
+     * 钩子只读 `args[0]`（MsgInfo），哪个形态解析到就用哪个。
+     *
+     * 不做成 `by dexMethod` 的第三个委托：它只是上面两个的择一别名，
+     * 再注册一个会在自检里多出一条永远失效的锚点。
+     */
+    private val methodInsertMessage: DexMethodDelegate
+        get() = if (!methodInsertMessageLong.isPlaceholder) {
+            methodInsertMessageLong
+        } else {
+            methodInsertMessageShort
+        }
+
+    override val supersededAnchors: Map<String, String>
+        get() = if (methodInsertMessageLong.isPlaceholder) {
+            mapOf(
+                "MentionMembers:methodInsertMessageLong" to
+                    "8.0.79 及更早的入库方法只有两个参数，已由 methodInsertMessageShort 覆盖"
+            )
+        } else {
+            mapOf(
+                "MentionMembers:methodInsertMessageShort" to
+                    "8.0.80 起入库方法多一个 boolean，已由 methodInsertMessageLong 覆盖"
+            )
+        }
 
     // MsgSourceHelper 节点合并方法: static (msgInfo, String nodeXml, boolean) -> void
     private val methodMergeMsgSourceNode by dexMethod {
@@ -123,7 +163,7 @@ object MentionMembers : SwitchFeature(), IResolveDex {
         listOf(
             WeChatInputBarMenuApi.ActionItem(
                 id = "mention_members",
-                icon = MaterialSymbols.Outlined.Alternate_email,
+                icon = OutlinedIcons.Alternate_email,
                 label = ("@所有人（长按配置）"),
                 isSupported = { _, _ ->
                     WeCurrentConversationApi.value.isGroupChatWxId

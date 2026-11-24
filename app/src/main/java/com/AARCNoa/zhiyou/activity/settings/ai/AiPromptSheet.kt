@@ -26,14 +26,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AARCNoa.zhiyou.ai.AiMemoryIndex
+import com.AARCNoa.zhiyou.ai.AiMomentsCommentEngine
 import com.AARCNoa.zhiyou.ai.AiProfile
 import com.AARCNoa.zhiyou.ai.AiProfileLimits
 import com.AARCNoa.zhiyou.ai.AiProfileStore
 import com.AARCNoa.zhiyou.ai.AiPrompts
+import com.AARCNoa.zhiyou.ai.AiTodaySummary
 import com.AARCNoa.zhiyou.ai.AiTokens
 import com.AARCNoa.zhiyou.ai.AiTools
 import com.AARCNoa.zhiyou.ai.ChatGoal
 import com.AARCNoa.zhiyou.ai.group.GroupDigestPrompts
+import com.AARCNoa.zhiyou.ai.group.GroupReport
 import com.AARCNoa.zhiyou.ai.ReplyStyle
 import com.AARCNoa.zhiyou.ai.StyleNote
 import com.AARCNoa.zhiyou.ui.content.ScrimDialog
@@ -104,6 +107,22 @@ internal fun AiPromptSheet(onDismiss: () -> Unit) {
             PromptSection("工具 · 审查记忆", toolNames(auditMemoryTools), toolSchema(auditMemoryTools))
             PromptSection("工具 · 智能建议", toolNames(suggestTools), toolSchema(suggestTools))
             PromptSection("工具 · 风格汇总", toolNames(styleTools), toolSchema(styleTools))
+            // 下面三条链路本来就不带 tools。写出来是为了别让人以为「工具没显示」是漏了配置。
+            PromptSection(
+                "工具 · 朋友圈评论",
+                "无工具（不带 schema）",
+                "只发 system + user，不带 tools 字段：评论是单次生成，不需要翻聊天记录或查记忆详情。",
+            )
+            PromptSection(
+                "工具 · 今日总结",
+                "无工具（不带 schema）",
+                "只把今天已落盘的事件与摘要拼进 user，模型直接输出 JSON，不调用工具。",
+            )
+            PromptSection(
+                "工具 · 群总结",
+                "无工具（不带 schema）",
+                "分片 / 合并两段请求都不传 tools，模型直接输出 JSON 摘要。",
+            )
 
             // ── 初始化 ──
             PromptSection("初始化 · system", "分片整理的规则", AiPrompts.initSystem())
@@ -161,8 +180,49 @@ internal fun AiPromptSheet(onDismiss: () -> Unit) {
                 ),
             )
 
+            // ── 朋友圈帮我评论（单发请求，不带工具） ──
+            // 与运行时同一套拼装（systemPrompt / userPrompt / profileBlock）。
+            val momentsPrompt = remember(profile) { AiMomentsCommentEngine.preview(profile) }
+            PromptSection(
+                "朋友圈评论 · system",
+                "三条不同风格 + 不编造看不见的内容",
+                momentsPrompt.first,
+            )
+            PromptSection(
+                "朋友圈评论 · user",
+                "动态正文 + 图片说明（示例按已补到 2 张渲染）+ 最近 40 条事件标题",
+                momentsPrompt.second,
+            )
+
+            // ── 今日总结（单发请求，输入只取已落盘记录） ──
+            PromptSection(
+                "今日总结 · system",
+                "只写今天发生的事与未完成的事",
+                AiTodaySummary.previewSystem(),
+            )
+            PromptSection(
+                "今日总结 · user",
+                "日期 + 今日记录（好友事件 / 群摘要 / 工作群任务）",
+                AiTodaySummary.previewUser(friendName = profile.nickname.ifBlank { profile.wxId }),
+            )
+
+            // ── 工作汇报（工作群详情里的「汇报」按钮，用户主动触发） ──
+            // 与运行时同一套 system / user；示例里带「同一环节反复、进度只推进一点」的摘要，
+            // 方便核对「慢」那一段话术会不会写歪。
+            val reportPrompt = remember { GroupReport.preview() }
+            PromptSection(
+                "工作汇报 · system",
+                "按节奏调整措辞：快说驾轻就熟，慢说核对细节打地基；面向不懂技术的上级",
+                reportPrompt.first,
+            )
+            PromptSection(
+                "工作汇报 · user",
+                "群名 + 时间范围 + 轮数与跨度 + 最多 40 条摘要（要点 / 待办 / 任务进度）",
+                reportPrompt.second,
+            )
+
             // ── 群总结（独立模块，与好友档案零共享） ──
-            // 三段对应三种请求：单片直接出摘要、多片每片只提炼、最后合并。
+            // 只有两步：分片提炼（1 片或多片都走这条）→ 合并成摘要。
             val digestNow = remember { System.currentTimeMillis() / 1000L }
             val digestSample = remember {
                 """
@@ -173,21 +233,8 @@ internal fun AiPromptSheet(onDismiss: () -> Unit) {
                 """.trimIndent()
             }
             PromptSection(
-                "群总结 · 单片",
-                "一次请求直接出摘要",
-                buildString {
-                    append("── system ──\n").append(GroupDigestPrompts.system())
-                    append("\n\n── user ──\n")
-                    append(
-                        GroupDigestPrompts.user(
-                            "示例群", digestNow - 3600, digestNow, digestSample,
-                        )
-                    )
-                },
-            )
-            PromptSection(
                 "群总结 · 分片",
-                "多片时每片只提炼要点（不出现片号）",
+                "每片只提炼要点，单片也走这条（不出现片号）",
                 buildString {
                     append("── system ──\n").append(GroupDigestPrompts.sliceSystem())
                     append("\n\n── user ──\n")

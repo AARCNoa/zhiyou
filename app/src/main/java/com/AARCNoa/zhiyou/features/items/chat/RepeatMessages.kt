@@ -1,7 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Exposure_plus_1
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.WeServiceApi
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
@@ -9,6 +7,7 @@ import com.AARCNoa.zhiyou.features.api.core.models.MessageType
 import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.ExposurePlus1Icon
 import com.AARCNoa.zhiyou.utils.AudioUtils
 import com.AARCNoa.zhiyou.utils.WeLogger
@@ -48,7 +47,7 @@ object RepeatMessages : SwitchFeature(), WeChatMessageContextMenuApi.IMenuItemsP
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {
         return listOf(
             WeChatMessageContextMenuApi.MenuItem(
-                777008, "复读", ExposurePlus1Icon, MaterialSymbols.Outlined.Exposure_plus_1,
+                777008, "复读", ExposurePlus1Icon, OutlinedIcons.Exposure_plus_1,
                 isSupported = ::isSupported,
                 onClick = { view, _, msgInfo ->
                     val context = view.context

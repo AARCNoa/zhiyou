@@ -31,9 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Pause
-import com.composables.icons.materialsymbols.outlined.Play_arrow
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.toClass
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
@@ -44,6 +41,7 @@ import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.AudioUtils
 import com.AARCNoa.zhiyou.utils.RuntimeConfig
@@ -229,7 +227,7 @@ private fun VoicePreviewBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = if (isPlaying) MaterialSymbols.Outlined.Pause else MaterialSymbols.Outlined.Play_arrow,
+            imageVector = if (isPlaying) OutlinedIcons.Pause else OutlinedIcons.Play_arrow,
             contentDescription = if (isPlaying) "暂停" else "播放",
             modifier = Modifier.size(28.dp),
             tint = MaterialTheme.colorScheme.primary,

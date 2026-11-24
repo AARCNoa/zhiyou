@@ -234,6 +234,25 @@ object ConversationAggregation : ClickableFeature(),
         }
     }
 
+    // 容器页（ConvBoxServiceConversationUI）的会话列表由 adapter `v0` 驱动，它调用的是
+    //   l4.s(int, List, String, int) -> Cursor
+    // 这一个 4 参 int 重载（方法体把 parentRef 直接拼进 SQL：
+    // `select * from rconversation where ... parentRef = '<arg2>' ...`）。
+    // 上面那个 5 参锚点匹配到的是主页用的另一个方法，容器页从不调用 —— 所以 hook 装着也永不命中，
+    // 表现就是「进盒子只有标题、列表全空」。
+    private val methodConversationStorageQueryByParentShort by dexMethod(allowFailure = true) {
+        matcher {
+            usingStrings("parentRef = '")
+            paramTypes(
+                "int",
+                "java.util.List",
+                "java.lang.String",
+                "int"
+            )
+            returnType("android.database.Cursor")
+        }
+    }
+
     // SelectConversationUI#doClickUser(username) — the single entry point for all conversation
     // taps in the "share to conversation" picker. WeChat only intercepts known virtual usernames
     // ("conversationboxservice", "opencustomerservicemsg") before forwarding to its share logic.
@@ -299,6 +318,10 @@ object ConversationAggregation : ClickableFeature(),
 
     @Volatile
     private var activeFolderId: String? = null
+
+    /** 诊断用：只记录第一次成功改写的查询，避免容器页刷新时刷屏。 */
+    @Volatile
+    private var loggedParentRewrite = false
 
     @Volatile
     private var folderSchemaReady: Boolean? = null
@@ -1136,15 +1159,33 @@ object ConversationAggregation : ClickableFeature(),
     }
 
     private fun hookConversationStorageParentQuery() {
-        if (methodConversationStorageQueryByParent.isPlaceholder) return
-        methodConversationStorageQueryByParent.hookBefore {
-            val folderId = activeFolderId ?: return@hookBefore
-            val parentRef = args.getOrNull(2) as? String ?: return@hookBefore
-            if (parentRef == WeChatFolderPlaceholder.CONVERSATION_BOX ||
-                parentRef == WeChatFolderPlaceholder.MESSAGE_FOLD
-            ) {
-                args[2] = folderId
+        listOf(
+            "5arg" to methodConversationStorageQueryByParent,
+            "4arg" to methodConversationStorageQueryByParentShort,
+        ).forEach { (label, method) ->
+            if (method.isPlaceholder) {
+                // 打 W 而不是静默 return：这条是「进盒子空白」的唯一分界点，
+                // 锚点没解析出来时用户看到的只是一个空列表，日志里必须留痕。
+                WeLogger.w(TAG, "queryByParent[$label] unresolved")
+                return@forEach
             }
+            method.hookBefore {
+                val folderId = activeFolderId ?: return@hookBefore
+                val parentRef = args.getOrNull(2) as? String ?: return@hookBefore
+                if (parentRef == WeChatFolderPlaceholder.CONVERSATION_BOX ||
+                    parentRef == WeChatFolderPlaceholder.MESSAGE_FOLD
+                ) {
+                    args[2] = folderId
+                    if (!loggedParentRewrite) {
+                        loggedParentRewrite = true
+                        WeLogger.i(
+                            TAG,
+                            "queryByParent[$label] rewritten: $parentRef -> $folderId (argc=${args.size})"
+                        )
+                    }
+                }
+            }
+            WeLogger.i(TAG, "queryByParent[$label] hooked")
         }
     }
 

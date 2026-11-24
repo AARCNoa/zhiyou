@@ -1,7 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.moments
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Camera
 import com.AARCNoa.zhiyou.features.api.core.WeServiceApi
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
 import com.AARCNoa.zhiyou.features.api.core.models.MessageType
@@ -9,6 +7,7 @@ import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.api.ui.WeMomentsApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.CameraIcon
 
 @Suppress("DEPRECATION")
@@ -83,7 +82,7 @@ object ForwardMessagesToMoments : SwitchFeature(), WeChatMessageContextMenuApi.I
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {
         return listOf(
             WeChatMessageContextMenuApi.MenuItem(
-                777009, "转圈", CameraIcon, MaterialSymbols.Outlined.Camera,
+                777009, "转圈", CameraIcon, OutlinedIcons.Camera,
                 isSupported = { it.type in SUPPORTED_MSG_TYPES },
                 // Moments can post: pure text, text + images, text + a single video, or multiple
                 // images. video can't be mixed with images and only one video is allowed. multiple

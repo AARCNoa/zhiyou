@@ -12,7 +12,7 @@ private const val TAG = "HideContacts.Sql"
  * Query-time hiding.
  *
  * Almost everything WeChat displays comes out of SQLite, and almost every read funnels through one
- * wrapper — `ka5.b0.g(String sql, String[] args, int) -> Cursor` (`ka5/b0.java:1009`; `b0.B(sql,
+ * wrapper — `ka5.b0.g(String sql, String[] args, int) -> Cursor` (`ka5/b0.java`; `b0.B(sql,
  * args)` is just `g(sql, args, 0)`). Every `com.tencent.mm.storage.*` storage class goes through it,
  * so hiding a contact from a new surface is usually a matter of recognising one more query shape
  * rather than finding a new hook. That is what [WRAPPER_RULES] is for.
@@ -27,9 +27,10 @@ private const val TAG = "HideContacts.Sql"
  */
 internal fun HideContacts.installSqlHooks() {
     // wrapper 是所有列表查询的公共咽喉，只要有任意一个查询型面开着就得装。
+    // 搜索结果也走 wrapper（首页搜索下拉、搜索页「会话」），所以 SURFACE_SEARCH 同样要装。
     if (surfaceOn(SURFACE_CONVERSATIONS) || surfaceOn(SURFACE_CONTACTS) ||
         surfaceOn(SURFACE_MOMENTS_INLINE) || surfaceOn(SURFACE_NEW_FRIENDS) ||
-        surfaceOn(SURFACE_UNREAD)
+        surfaceOn(SURFACE_UNREAD) || surfaceOn(SURFACE_SEARCH)
     ) {
         installWrapperHook()
     }
@@ -42,6 +43,7 @@ private fun ruleSurface(ruleName: String): String = when (ruleName) {
     "unread-count" -> HideContacts.SURFACE_UNREAD
     "new-friends" -> HideContacts.SURFACE_NEW_FRIENDS
     "moments-comments" -> HideContacts.SURFACE_MOMENTS_INLINE
+    "conversation-search" -> HideContacts.SURFACE_SEARCH
     else -> HideContacts.SURFACE_CONTACTS
 }
 
@@ -63,6 +65,13 @@ private class SqlRule(
 
 private val WRAPPER_RULES = listOf(
     SqlRule("conversation-list", ::looksLikeConversationListQuery) {
+        "rconversation.username NOT IN (${it.toSqlList()})"
+    },
+    // 搜索框实时匹配会话名（首页搜索下拉、搜索页「会话」结果）。
+    // 这类查询是 `select * from rconversation where username like ? ...`，没有主页列表那三列
+    // （conversationtime / unreadcount / digestuser），上面的 conversation-list 规则匹配不到，
+    // 隐藏联系人的会话名照样会被搜出来。语料见 [looksLikeConversationSearchQuery]。
+    SqlRule("conversation-search", ::looksLikeConversationSearchQuery) {
         "rconversation.username NOT IN (${it.toSqlList()})"
     },
     // Qualify as rcontact.username: several of these queries are joins (e.g. "from rcontact,
@@ -100,11 +109,11 @@ private val WRAPPER_RULES = listOf(
         "talker NOT IN (${it.toSqlList()})"
     },
     // 通讯录 -> 群聊 的底部「N 个群聊」计数 (ContactCountView with contactType == 2). The statement is
-    // built inline in `ui/contact/f1.run()` (8.0.76 `f1.java:28`, 8.0.69 `e1.java:28`).
+    // built inline in `ui/contact/f1.run()` (8.0.76 `f1.java`, 8.0.69 `e1.java`).
     //
     // The prefix alone does NOT identify it: ContactStorage.O — the 通讯录 contact count — emits the
-    // exact same leading text whenever `includeBlack` is false (8.0.76 `storage/j4.java:462-466`,
-    // 8.0.69 `storage/l3.java:436-440` append "type & 8 =0 and " between the two halves), which is
+    // exact same leading text whenever `includeBlack` is false (8.0.76 `storage/j4.java`,
+    // 8.0.69 `storage/l3.java` append "type & 8 =0 and " between the two halves), which is
     // precisely how ContactCountView calls it for contactType == 1. That query's WHERE ends in a bare
     // `or username = 'weixin'`, so injectCondition must never touch it (see its KDoc), and task 6A
     // already corrects that count in a hookAfter — matching it here would compound the two.
@@ -117,7 +126,7 @@ private val WRAPPER_RULES = listOf(
     },
     // 微信运动排行榜. `ExdeviceRankInfoStg` reads the ranking with
     // `select *, rowid from HardDeviceRankInfo where rankID = ? order by score desc`
-    // (8.0.76 `f42/c.java:40`, 8.0.69 `oy1/c.java:40`); the table carries a real `username` column.
+    // (8.0.76 `f42/c.java`, 8.0.69 `oy1/c.java`); the table carries a real `username` column.
     // Ranks are renumbered by the UI afterwards, which is the intended result.
     //
     // Deliberately narrow: `select COUNT(*) from HardDeviceRankInfo where rankID = ?`
@@ -130,19 +139,19 @@ private val WRAPPER_RULES = listOf(
 
 /**
  * Prefix of the 群聊 count statement, lowercased. `ui/contact/f1.run()` seeds its StringBuilder with
- * exactly this literal (8.0.76 `f1.java:28`, 8.0.69 `e1.java:28`, byte-identical).
+ * exactly this literal (8.0.76 `f1.java`, 8.0.69 `e1.java`, byte-identical).
  */
 private const val GROUP_COUNT_PREFIX =
     "select count(username) from rcontact where type & 1 !=0 and type & 32 =0 and type & 8 =0 and verifyflag & 8 = 0"
 
 /**
  * The tail that only `ContactStorage.O` (「N 位联系人」) ever produces — an unconditional
- * `sb6.append(" or username = 'weixin'")` at the very end of the WHERE (8.0.76 `storage/j4.java:487`,
- * 8.0.69 `storage/l3.java:461`).
+ * `sb6.append(" or username = 'weixin'")` at the very end of the WHERE (8.0.76 `storage/j4.java`,
+ * 8.0.69 `storage/l3.java`).
  *
  * `O` assembles its statement as `"…type & 32 =0 and " + ("type & 8 =0 and " unless includeBlack) +
  * "verifyFlag & 8 = 0 "`, so with `includeBlack = false` — the only way ContactCountView ever calls
- * it (8.0.76 `ui/contact/f1.java:22`, 8.0.69 `ui/contact/e1.java:22`) — the text it emits starts with
+ * it (8.0.76 `ui/contact/f1.java`, 8.0.69 `ui/contact/e1.java`) — the text it emits starts with
  * [GROUP_COUNT_PREFIX] verbatim. The two statements first diverge in what `e01.e2` appends next, and
  * that differs again between the plain and the `usernameFlag` feature-flag path (`e2.b`/`e2.c` fork
  * on `com.tencent.mm.contact.d.a()` into `m`/`o` on 8.0.76, `k`/`m` on 8.0.69), so no substring of
@@ -215,6 +224,26 @@ private fun looksLikeConversationListQuery(lower: String): Boolean {
 }
 
 /**
+ * 搜索型 rconversation 查询：`select * from rconversation where username like ? and ...`。
+ *
+ * 首页搜索下拉与搜索页「会话」结果都走它，而它没有主页列表那三列，[looksLikeConversationListQuery]
+ * 匹配不到 —— 不单独认出来，隐藏联系人的会话名会被直接搜出来。
+ *
+ * 只认带 `like` 的语句，并排除「按 username 精确定位单行」的 getter：给 getter 注入
+ * `username NOT IN (...)` 会让会话查找返回 null，隐藏联系人的临时显示、消息入库都会受影响。
+ */
+private fun looksLikeConversationSearchQuery(lower: String): Boolean {
+    if (!lower.contains("select")) return false
+    if (!lower.contains("from rconversation")) return false
+    if (!lower.contains(" like ")) return false
+    if (!lower.contains(" where ")) return false
+    if (lower.contains("username = ?") || lower.contains("username=?")) return false
+    if (lower.contains("username='") || lower.contains("username = '")) return false
+    if (lower.contains("username not in")) return false
+    return true
+}
+
+/**
  * Recognises full contact-list queries (contact selector, 群聊 list, 标签 members, OpenIM, 公众号).
  * The table must be rcontact and the query must select pyinitial / quanpin.
  *
@@ -271,13 +300,13 @@ private const val SQL_SELECT_MESSAGES_BY_KEYWORD =
     "SELECT FTS5MetaMessage.docid, type, subtype, entity_id, aux_index, timestamp, talker FROM FTS5MetaMessage"
 
 /**
- * 服务通知搜索 (`FTS5ServiceNotifyStorage.queryNotifyMessage`, 8.0.76 `q23/j.java:112-135`,
- * 8.0.69 `uv2/j.java:107-130`).
+ * 服务通知搜索 (`FTS5ServiceNotifyStorage.queryNotifyMessage`, 8.0.76 `q23/j.java`,
+ * 8.0.69 `uv2/j.java`).
  *
  * Shaped like the [FTS_SQL_REGEX] queries but its `aux_index` is pinned to the literal
  * `'notifymessage'` for every row, so an `aux_index NOT IN (...)` wrapper would filter nothing.
  * `FTS5MetaServiceNotify` is the one meta table with an extra `talker TEXT` column
- * (`q23/j.java:155`), and that is where the contact actually lives — hence its own branch.
+ * (`q23/j.java`), and that is where the contact actually lives — hence its own branch.
  */
 private const val SQL_SELECT_SERVICE_NOTIFY =
     "SELECT FTS5MetaServiceNotify.docid, type, subtype, entity_id, aux_index,"
@@ -292,9 +321,9 @@ private const val SQL_SELECT_CHATROOM_BY_INDEX = "SELECT aux_index FROM FTS5Inde
 /**
  * FTS meta tables whose `aux_index` column holds the contact/chatroom id.
  *
- * Table names are `"FTS5Meta" + storage.getTableSuffix()` (`i23/a.java:403`). The four added here
- * are ChatroomMember (`q23/a.java:48`), WeShop (`k15/m.java:38`), AIHistory (`wv4/h.java:40`) and
- * AIHistoryChat (`wv4/b.java:38`); ServiceNotify needs its own branch, see
+ * Table names are `"FTS5Meta" + storage.getTableSuffix()` (`i23/a.java`). The four added here
+ * are ChatroomMember (`q23/a.java`), WeShop (`k15/m.java`), AIHistory (`wv4/h.java`) and
+ * AIHistoryChat (`wv4/b.java`); ServiceNotify needs its own branch, see
  * [SQL_SELECT_SERVICE_NOTIFY]. AIHistoryChat only exists from 8.0.76 —
  * listing a table that a given version never creates simply never matches, which is harmless.
  * 朋友圈 has no FTS table at all on these versions, and `FTS5MetaSOSHistory` (搜一搜 query history,
@@ -304,8 +333,20 @@ private val FTS_SQL_REGEX =
     Regex("^SELECT (FTS5MetaContact|FTS5MetaTopHits|FTS5MetaKefuContact|FTS5MetaFeature|FTS5MetaWeApp|FTS5MetaFinderFollow|FTS5MetaFavorite|FTS5MetaChatroomMember|FTS5MetaWeShop|FTS5MetaAIHistory|FTS5MetaAIHistoryChat)\\.docid, type, subtype, entity_id, aux_index,.*")
 
 /**
+ * 8.0.80 起的 FTS 消息查询模板：`SELECT type, subtype, entity_id, aux_index, ... FROM %s NOT INDEXED
+ * JOIN %s ...`。SELECT 列表里不再写 `<表名>.docid` 前缀，表名在 FROM 之后才拼进语句 ——
+ * [FTS_SQL_REGEX] 的旧前缀匹配会整片落空，全局搜索因此能把隐藏联系人的聊天记录搜出来。
+ *
+ * 只按列顺序识别：`type, subtype, entity_id, aux_index` 是 FTS meta 表专有的前四列；
+ * 再要求 FROM 的是 FTS5Meta 表，同时仍受 [AUX_INDEX_PINNED_REGEX] 的「单会话搜索」排除，
+ * 误伤面极小。
+ */
+private val FTS_TEMPLATE_COLUMNS = Regex("^select type, subtype, entity_id, aux_index,", RegexOption.IGNORE_CASE)
+private val FTS_META_FROM = Regex("\\bfrom\\s+fts5meta", RegexOption.IGNORE_CASE)
+
+/**
  * A query that already pins `aux_index` to one value — either a bind placeholder
- * (`i23/a.java:197`) or an inlined literal (`q23/h.java:133`, 在当前聊天里搜索聊天记录).
+ * (`i23/a.java`) or an inlined literal (`q23/h.java`, 在当前聊天里搜索聊天记录).
  *
  * Such a query is already scoped to a single chat, so adding `aux_index NOT IN (...)` can only ever
  * turn it into zero rows. That is exactly what used to happen when a hidden chat was opened (via
@@ -314,13 +355,13 @@ private val FTS_SQL_REGEX =
 private val AUX_INDEX_PINNED_REGEX = Regex("aux_index\\s*=\\s*[?']", RegexOption.IGNORE_CASE)
 
 /**
- * The `chatroom TEXT, member TEXT` mapping table (`q23/b.java:47`) behind 共同群聊 / 群聊计数 /
+ * The `chatroom TEXT, member TEXT` mapping table (`q23/b.java`) behind 共同群聊 / 群聊计数 /
  * 群成员建议. The two join shapes WeChat builds over it:
  * - `... JOIN FTS5ChatRoomMembers ON (aux_index = chatroom) WHERE member=? ...` —
- *   SearchChatroomByMemberTask (`k0.java:29`), SearchChatroomInMemberTask (`n0.java:36`),
- *   SearchChatroomCountTask (`m0.java:29`);
+ *   SearchChatroomByMemberTask (`k0.java`), SearchChatroomInMemberTask (`n0.java`),
+ *   SearchChatroomCountTask (`m0.java`);
  * - `FROM FTS5ChatRoomMembers, FTS5MetaContact WHERE member IN (...) AND chatroom = aux_index` —
- *   SearchCommonChatroomTask (`s0.java:42`).
+ *   SearchCommonChatroomTask (`s0.java`).
  */
 private const val CHATROOM_MEMBERS_JOIN = "FTS5ChatRoomMembers ON (aux_index = chatroom)"
 private const val CHATROOM_MEMBERS_CROSS_JOIN = "FROM FTS5ChatRoomMembers, "
@@ -353,7 +394,8 @@ internal fun rewriteFtsSql(sql: String, hidden: Set<String>): String? {
     val matchesAuxIndexShape = FTS_SQL_REGEX.containsMatchIn(sql) ||
             sql.startsWith(SQL_SELECT_MESSAGE) ||
             sql.startsWith(SQL_SELECT_MESSAGES_BY_KEYWORD) ||
-            sql.startsWith(SQL_SELECT_CHATROOM_BY_INDEX)
+            sql.startsWith(SQL_SELECT_CHATROOM_BY_INDEX) ||
+            (FTS_TEMPLATE_COLUMNS.containsMatchIn(sql) && FTS_META_FROM.containsMatchIn(sql))
     if (!matchesAuxIndexShape) return null
     if (AUX_INDEX_PINNED_REGEX.containsMatchIn(sql)) return null
 

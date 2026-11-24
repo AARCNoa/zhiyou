@@ -28,9 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Close
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.android.showToastSuspend
 import kotlinx.coroutines.launch
 
@@ -106,7 +104,7 @@ private fun PanelPackPickerContent(
                 ) {
                     Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
-                        Icon(MaterialSymbols.Outlined.Close, "关闭")
+                        Icon(OutlinedIcons.Close, "关闭")
                     }
                 }
                 HorizontalDivider()
@@ -115,7 +113,7 @@ private fun PanelPackPickerContent(
                         ListItem(
                             modifier = Modifier.clickable(enabled = !creating) { prompt = true },
                             colors = panelListItemColors(),
-                            leadingContent = { Icon(MaterialSymbols.Outlined.Add, null) },
+                            leadingContent = { Icon(OutlinedIcons.Add, null) },
                             headlineContent = { Text(createLabel) },
                             supportingContent = { Text("创建一个新包后保存到其中") },
                         )

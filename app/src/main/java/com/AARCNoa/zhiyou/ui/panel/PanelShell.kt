@@ -94,10 +94,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Search
 import com.AARCNoa.zhiyou.features.items.chat.panel.PanelUiState
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.CommonContextWrapper
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.utils.android.isDarkMode
@@ -363,7 +361,7 @@ fun <T> PanelShell(
                         Box(Modifier.weight(1f))
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(MaterialSymbols.Outlined.Close, "关闭")
+                        Icon(OutlinedIcons.Close, "关闭")
                     }
                 }
                 HorizontalDivider()
@@ -508,7 +506,7 @@ private fun PanelActionSearchButton(
         contentAlignment = Alignment.Center,
     ) {
         IconButton(onClick = { search.onExpandedChange(true) }) {
-            Icon(MaterialSymbols.Outlined.Search, search.label)
+            Icon(OutlinedIcons.Search, search.label)
         }
     }
 }
@@ -569,7 +567,7 @@ private fun PanelActionSearchField(
                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = progress)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(MaterialSymbols.Outlined.Search, "关闭搜索")
+                    Icon(OutlinedIcons.Search, "关闭搜索")
                 }
             }
             BasicTextField(

@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonArray
  * `/sdcard/Download/知友AI/prompts/`。
  *
  * 只读文件不依赖任何跨进程通道：微信进程自己能写 Download 下自己创建的文件
- * （之前实测过 —— 别人写的读不到，自己写没问题）。debug 专用。
+ * （别的进程写在公开目录的文件读不到，自己写的可以）。debug 专用。
  *
  * 内容三段：tools（完整 JSON schema）、system、user，外加一行思考开关状态。
  * tools 是请求体里独立的一段，不在 system/user 里；不写出来会让人以为「没有工具」。

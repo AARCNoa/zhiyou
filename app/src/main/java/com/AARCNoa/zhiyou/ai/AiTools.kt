@@ -52,6 +52,14 @@ object AiTools {
     const val UPDATE_STYLE = "update_style"
 
     /**
+     * 自动回复专用：把聊天里说定的事记进总览。
+     *
+     * 只有自动回复下发。手动建议是「用户正看着这条，帮他回一句」，没有提醒的时机；
+     * 自动回复是后台替用户盯着消息，说了什么约定得留个痕。
+     */
+    const val REPORT_IMPORTANT_EVENT = "report_important_event"
+
+    /**
      * 审查提案的**单片上限**：审查按每片 150 条切，这几个数字都按片算。
      *
      * 另有 `MAX_TOTAL_*` 按整次审查算（14 片累计），防止一次审查把档案删空。
@@ -91,6 +99,13 @@ object AiTools {
     const val TITLE_MAX = 20
     const val DETAIL_MAX = 200
     const val EVIDENCE_MAX = 40
+
+    /**
+     * 总览事件的字数上限：比记忆标题宽一些 ——
+     * 「周六下午一起打球」这类事要带上时间地点才算说清，20 字容易逼模型缩写。
+     */
+    const val EVENT_TITLE_MAX = 40
+    const val EVENT_DETAIL_MAX = 200
 
     /**
      * 片内观察的字数上限。**这是护栏不是目标**：提示词里让模型按片长写
@@ -191,6 +206,19 @@ object AiTools {
         withEarlierMemory = true,
     )
 
+    /**
+     * 自动回复：在 [forSuggest] 的只读工具之上，多一个「记进总览」的写入工具。
+     *
+     * 注意它写的是总览，不是好友档案 —— 档案仍然只读，模型没法借这条路改标签与记忆。
+     */
+    fun forAutoReply(): JsonArray = definitions(
+        withHistory = true,
+        withMemory = true,
+        withUpdate = false,
+        withEarlierMemory = true,
+        withReportEvent = true,
+    )
+
     /** 风格汇总：单轮，只能写侧写，读不到聊天记录（汇总只合并片内观察）。 */
     fun forStyle(): JsonArray = definitions(
         withHistory = false,
@@ -212,12 +240,14 @@ object AiTools {
         withStyle: Boolean = false,
         withUpdateStyle: Boolean = false,
         withEarlierMemory: Boolean = false,
+        withReportEvent: Boolean = false,
     ): JsonArray = buildJsonArray {
         if (withHistory) add(historyTool())
         if (withMemory) add(readMemoryTool())
         if (withEarlierMemory) add(loadEarlierMemoriesTool())
         if (withUpdate) add(updateProfileTool(withStyle))
         if (withUpdateStyle) add(updateStyleTool())
+        if (withReportEvent) add(reportEventTool())
         // 标签片与记忆片的 schema 不同：各只背自己那一半，14 片 × 省下的 1k 字符是实打实的。
         if (withAuditTags) add(proposeAuditTool(withTags = true, withMemories = false))
         if (withAuditMemories) add(proposeAuditTool(withTags = false, withMemories = true))
@@ -346,6 +376,33 @@ object AiTools {
                 ),
             )
         },
+    )
+
+    /**
+     * 自动回复专用：把约定记进总览。
+     *
+     * 判断标准写在 system（`AiPrompts.suggestSystem`），这里只描述字段怎么填 ——
+     * 同一个工具在别的场景也复用，判断标准放进 schema 会变成第二份口径。
+     */
+    private fun reportEventTool(): JsonObject = tool(
+        name = REPORT_IMPORTANT_EVENT,
+        description = "把这条对话里用户过后需要知道、或需要处理的事记进「总览」。\n" +
+            "- 对方提出见面、出去玩、一起做什么（去哪、玩什么、什么时候），即使还没定下来也记。\n" +
+            "- 对方告知的重要情况：怀孕、生病受伤、家里出事、工作变动、要离开或要来找用户。\n" +
+            "- 用户答应下来的事（帮什么忙、什么时候给答复）。\n" +
+            "- title 一句话说清「谁要做什么」或「发生了什么」，时间地点等细节放 detail。\n" +
+            "- 同一件事只提交一次。日常闲聊、情绪撒娇、吃饭报备不记。",
+        properties = buildJsonObject {
+            put(
+                "title",
+                strProp("一句话说清这件事，$EVENT_TITLE_MAX 字以内，例如「明天约见面」「她说怀孕了」"),
+            )
+            put(
+                "detail",
+                strProp("可选：时间、地点、对方是谁等细节，$EVENT_DETAIL_MAX 字以内"),
+            )
+        },
+        "title",
     )
 
     /**
@@ -651,6 +708,7 @@ object AiTools {
                 LOAD_EARLIER_MEMORIES -> loadEarlierMemories(wxId, memoryPager)
                 PROPOSE_AUDIT -> proposeAudit(wxId, call.arguments)
                 UPDATE_STYLE -> updateStyle(wxId, call.arguments)
+                REPORT_IMPORTANT_EVENT -> reportEvent(wxId, call.arguments)
                 // 旧版本下发过独立工具 note_style；模型在重放历史响应时可能仍带着它，
                 // 回一句可理解的错误，而不是「未知工具」。
                 "note_style" -> error("style 现在写在 update_profile 里，请合并到那次调用。")
@@ -1329,6 +1387,26 @@ object AiTools {
             put("chars", summary.length)
             put("sections", AiPrompts.styleSections(summary))
             put("based_until", saved.style.basedUntil)
+        }.toString()
+    }
+
+    /**
+     * 把一条约定写进总览。
+     *
+     * 目标好友同样由代码传入（`wxId`），模型只能在当前会话上记。
+     * 重复提交不报错 —— 多轮对话里同一件事被记两次很常见，报错会让模型反复重试。
+     */
+    private fun reportEvent(wxId: String, arguments: String): String {
+        val obj = arguments.toObject()
+        val title = obj.str("title").orEmpty().trim()
+        if (title.isEmpty()) return error("title 为空，没有可记录的事。")
+        val detail = obj.str("detail").orEmpty().trim()
+        val recorded = AiOverviewStore.appendEvent(wxId = wxId, title = title, detail = detail)
+        return buildJsonObject {
+            // 重复提交也回 ok：模型无从判断「刚才那条是不是已经写进去了」，
+            // 回错误只会让它换个说法再写一遍。
+            put("ok", recorded)
+            put("title", title.take(EVENT_TITLE_MAX))
         }.toString()
     }
 

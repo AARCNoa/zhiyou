@@ -49,12 +49,11 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
 import com.AARCNoa.zhiyou.utils.strings.isGroupChatWxId
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -309,7 +308,7 @@ object KeywordAutoReply : ClickableFeature(), WeDatabaseListenerApi.IInsertListe
                             onRulesChanged(rules.toList())
                         }) {
                             Icon(
-                                imageVector = MaterialSymbols.Outlined.Delete,
+                                imageVector = OutlinedIcons.Delete,
                                 contentDescription = "删除规则"
                             )
                         }

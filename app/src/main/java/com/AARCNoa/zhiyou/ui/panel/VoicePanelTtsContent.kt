@@ -25,12 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Play_arrow
-import com.composables.icons.materialsymbols.outlined.Send
 import com.AARCNoa.zhiyou.features.items.chat.EDGE_TTS_VOICES
 import com.AARCNoa.zhiyou.features.items.chat.panel.CloneVoice
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 internal enum class TtsMode { SYSTEM, EDGE, CLONE }
 
@@ -70,7 +67,7 @@ internal fun TtsContent(
                 supportingText = { Text("${text.codePointCount(0, text.length)}/256") },
                 trailingIcon = if (text.isNotEmpty()) ({
                     IconButton(onClick = { onTextChange("") }) {
-                        Icon(MaterialSymbols.Outlined.Close, "清除文字")
+                        Icon(OutlinedIcons.Close, "清除文字")
                     }
                 }) else null,
                 minLines = 3,
@@ -115,11 +112,11 @@ internal fun TtsContent(
             ) {
                 if (converted) {
                     OutlinedButton(onClick = onPreviewConverted, modifier = Modifier.weight(1f)) {
-                        Icon(MaterialSymbols.Outlined.Play_arrow, null, Modifier.size(18.dp))
+                        Icon(OutlinedIcons.Play_arrow, null, Modifier.size(18.dp))
                         Text("预览", Modifier.padding(start = 8.dp))
                     }
                     Button(onClick = onSendConverted, modifier = Modifier.weight(1f)) {
-                        Icon(MaterialSymbols.Outlined.Send, null, Modifier.size(18.dp))
+                        Icon(OutlinedIcons.Send, null, Modifier.size(18.dp))
                         Text("发送", Modifier.padding(start = 8.dp))
                     }
                 } else {
@@ -127,7 +124,7 @@ internal fun TtsContent(
                         Text("转换")
                     }
                     Button(onClick = onSynthesize, modifier = Modifier.weight(1f)) {
-                        Icon(MaterialSymbols.Outlined.Send, null, Modifier.size(18.dp))
+                        Icon(OutlinedIcons.Send, null, Modifier.size(18.dp))
                         Text("转换并发送", Modifier.padding(start = 8.dp))
                     }
                 }

@@ -48,7 +48,7 @@ object LaunchInternalUrls : ClickableFeature(), IResolveDex {
                         onDismiss()
                         val args = if (argsInput.isBlank()) emptyList() else argsInput.split("\n")
                         methodOpenUrl.method.invoke(
-                            // FIXME: getDeclaredConstructor() says no ctor exists?? but Unsafe works????
+                            // 构造器被混淆或隐藏，getDeclaredConstructor 拿不到；用 Unsafe 直接分配实例。
                             WeUnsafeApi.allocateInstance(methodOpenUrl.method.declaringClass),
                             *arrayOf(context, url, args.toTypedArray())
                         )

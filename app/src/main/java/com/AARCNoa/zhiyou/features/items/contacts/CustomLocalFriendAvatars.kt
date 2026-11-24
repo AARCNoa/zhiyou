@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,7 +45,9 @@ import dev.ujhhgtg.reflekt.utils.makeAccessible
 import dev.ujhhgtg.reflekt.utils.toClass
 import com.AARCNoa.zhiyou.activity.TransparentActivity
 import com.AARCNoa.zhiyou.constants.PackageNames
+import com.AARCNoa.zhiyou.dexkit.DexMethodDescriptor
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
+import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.dexkit.dsl.dexClass
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
@@ -67,7 +70,10 @@ import com.AARCNoa.zhiyou.utils.android.currentWxId
 import com.AARCNoa.zhiyou.utils.android.showToast
 import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import com.AARCNoa.zhiyou.utils.reflection.BString
+import com.AARCNoa.zhiyou.utils.reflection.ClassLoaders
 import com.AARCNoa.zhiyou.utils.reflection.bool
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -262,7 +268,12 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
 
             // allowMultiple 的委托（如 methodFeatureAvatarSimple1）会把同签名的方法全部返回，
             // 统一遍历候选逐个 hook，避免只挂上第一个导致部分入口漏改头像。
-            val targets = delegate.candidateMethods()
+            // 缓存命中时委托只能按描述符回退一条，这里再按该类枚举同签名方法补回其余入口。
+            val targets = if (name == "methodFeatureAvatarSimple1") {
+                expandSameSignature(delegate)
+            } else {
+                delegate.candidateMethods()
+            }
             if (targets.isEmpty()) {
                 WeLogger.w(TAG, "skipping hook $name: no candidate method resolved")
                 continue
@@ -334,6 +345,28 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
         WeLogger.i(TAG, "CustomLocalFriendAvatars enabled, avatarMap size=${avatarMap.size}")
     }
 
+    /**
+     * 取出该类里所有同签名的方法。
+     *
+     * `methodFeatureAvatarSimple1` 的匹配条件就是「AvatarDrawable 类里所有 (ImageView,String)V」，
+     * 不同版本会有一到多个（8.0.76 一个、8.0.79 两个）。DexKit 缓存的 key 只存选中的那一条，
+     * 二次启动时 [candidateMethods] 只能回退一条，所以这里按描述符的类再枚举一次补齐。
+     */
+    private fun expandSameSignature(delegate: DexMethodDelegate): List<Method> {
+        val base = delegate.candidateMethods()
+        val descriptor = delegate.getDescriptorString() ?: return base
+        return runCatching {
+            val desc = DexMethodDescriptor(descriptor)
+            val className = desc.declaringClass
+                .removePrefix("L")
+                .removeSuffix(";")
+                .replace('/', '.')
+            val methods = ClassLoaders.HOST.loadClass(className).declaredMethods
+                .filter { DexMethodDescriptor.getMethodTypeSig(it) == desc.signature }
+            (base + methods).distinctBy { it.name + DexMethodDescriptor.getMethodTypeSig(it) }
+        }.getOrDefault(base)
+    }
+
     override fun onDisable() {
         WeContactPrefsScreenApi.removeProvider(this)
         avatarMapCache = null
@@ -343,8 +376,13 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
     }
 
     override fun getContactInfoItem(activity: Activity): List<PreferenceItem> {
-        val wxId = activity.currentWxId ?: return emptyList()
+        val wxId = activity.currentWxId ?: run {
+            // 资料页入口消失时，先看是「没取到会话 id」还是「条目没被注入」。
+            WeLogger.d(TAG, "contact prefs: no currentWxId on ${activity.javaClass.simpleName}")
+            return emptyList()
+        }
         val hasCustomAvatar = avatarMap.containsKey(wxId)
+        WeLogger.d(TAG, "contact prefs item for $wxId, custom=$hasCustomAvatar")
         return listOf(
             PreferenceItem(
                 key = PREF_KEY,
@@ -358,6 +396,7 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
         if (key != PREF_KEY) return false
         val wxId = activity.currentWxId ?: return true
 
+        WeLogger.i(TAG, "profile entry clicked for $wxId, custom=${avatarMap.containsKey(wxId)}")
         if (avatarMap.containsKey(wxId)) {
             showContactAvatarDialog(activity, wxId)
         } else {
@@ -369,8 +408,14 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
 
     override fun onClick(context: ComponentActivity) {
         showComposeDialog(context) {
+            // 好友 + 群可能有几千条，主线程直接查库会让对话框迟迟弹不出来（看起来像没反应）。
+            var contacts by remember { mutableStateOf<List<IWeContact>>(emptyList()) }
+            LaunchedEffect(Unit) {
+                contacts = withContext(Dispatchers.IO) { loadContacts() }
+                WeLogger.i(TAG, "avatar manager loaded ${contacts.size} contacts")
+            }
             CustomAvatarManagerDialog(
-                contacts = remember { loadContacts() },
+                contacts = contacts,
                 entries = avatarMap,
                 onDismiss = onDismiss,
                 onSelectImage = { wxId ->
@@ -589,18 +634,30 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
     }
 
     fun selectAvatarImage(context: Context, wxId: String) {
-        TransparentActivity.launch(context) {
-            val launcher = registerForActivityResult(
-                ActivityResultContracts.PickVisualMedia()
-            ) { uri ->
-                finish()
-                if (uri == null) return@registerForActivityResult
-
-                persistReadPermission(uri)
-                setAvatar(wxId, uri.toString())
-                showToast("自定义头像已设置, 重新进入页面或重启微信后生效")
+        WeLogger.i(TAG, "opening image picker for $wxId")
+        runCatching {
+            TransparentActivity.launch(context) {
+                WeLogger.i(TAG, "picker activity created for $wxId")
+                val launcher = registerForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    finish()
+                    if (uri == null) {
+                        WeLogger.i(TAG, "image picker cancelled for $wxId")
+                        return@registerForActivityResult
+                    }
+                    persistReadPermission(uri)
+                    setAvatar(wxId, uri.toString())
+                    showToast("自定义头像已设置, 重新进入页面或重启微信后生效")
+                }
+                launcher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
             }
-            launcher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }.onFailure {
+            // 宿主是微信进程：显式 Activity 启动被拦、或相册没有可用 Activity 时都会走到这里。
+            WeLogger.e(TAG, "failed to open image picker for $wxId", it)
+            showToast("无法打开相册：${it.javaClass.simpleName}")
         }
     }
 
@@ -615,6 +672,7 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
     private fun setAvatar(wxId: String, uri: String) {
         avatarMap = avatarMap + (wxId to uri)
         clearBitmapCaches()
+        WeLogger.i(TAG, "saved custom avatar for $wxId, map size=${avatarMap.size}")
     }
 
     fun removeAvatar(wxId: String) {

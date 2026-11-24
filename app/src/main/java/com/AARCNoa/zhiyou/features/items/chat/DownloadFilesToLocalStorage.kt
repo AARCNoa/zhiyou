@@ -1,12 +1,11 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Download
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.models.MessageType
 import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.DownloadIcon
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
@@ -34,7 +33,7 @@ object DownloadFilesToLocalStorage : SwitchFeature(), WeChatMessageContextMenuAp
                 777022,
                 "下载",
                 DownloadIcon,
-                MaterialSymbols.Outlined.Download,
+                OutlinedIcons.Download,
                 { msgInfo -> msgInfo.type == MessageType.FILE }
             ) { _, _, msgInfo ->
                 showToast("正在缓存并下载...")

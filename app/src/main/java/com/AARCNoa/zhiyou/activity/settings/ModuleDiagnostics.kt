@@ -50,26 +50,39 @@ internal object ModuleDiagnostics {
          * 值就是「为什么可以忽略」的说明，来自 [BaseFeature.supersededAnchors]。
          */
         val supersededNote: String? = null,
-    )
+    ) {
+        /**
+         * 是否真的需要重新适配：未解析，且没有「旧路径已被替代」「微信整体移除了这个功能」的说明。
+         *
+         * 各诊断页统一走这里，避免某一页把已解释的锚点又算成异常。
+         */
+        fun needsAdaptation(): Boolean =
+            !resolved && supersededNote == null && unavailableReason == null
+    }
 
     /**
      * 汇总全部已注册的 Dex 锚点。
      *
-     * [filter] 让各页面只取自己关心的部分（如隐藏联系人页只看 contacts / chat 相关）。
+     * [filter] 让各页面只取自己关心的部分：除功能名、锚点名，还给到功能所属分类。
+     * 按分类取（如「密友功能」整块）比按名字模糊匹配可靠——名字里带「联系人」的功能
+     * 不止密友那一个。
      * 返回的是「缓存状态」，不会触发 DexKit 重新扫描，因此可安全在 UI 线程调用。
      */
-    fun anchors(filter: (feature: String, key: String) -> Boolean = { _, _ -> true }): List<Anchor> {
+    fun anchors(
+        filter: (feature: String, key: String, categories: List<String>) -> Boolean = { _, _, _ -> true },
+    ): List<Anchor> {
         val out = mutableListOf<Anchor>()
         runCatching {
             FeaturesProvider.ALL_HOOK_ITEMS.forEach { feature ->
                 val featureName = runCatching { feature.name }.getOrDefault("未命名功能")
+                val categories = runCatching { feature.categories }.getOrDefault(emptyList())
                 val active = runCatching { feature.isActive }.getOrDefault(false)
                 val unavailable = runCatching { feature.unavailableReason }.getOrNull()
                 val superseded = runCatching { feature.supersededAnchors }.getOrDefault(emptyMap())
                 val delegates = runCatching { feature.dexDelegates }.getOrDefault(emptyList())
                 delegates.forEach lit@{ delegate ->
                     val key = runCatching { delegate.key }.getOrDefault("未命名锚点")
-                    if (!filter(featureName, key)) return@lit
+                    if (!filter(featureName, key, categories)) return@lit
                     val rawDescriptor = runCatching { delegate.getDescriptorString() }.getOrNull()
                     // 占位符同样会返回一个非空描述符（Lcom/tencent/mm/ui/LauncherUI;->getInstance()...），
                     // 只看 `descriptor != null` 会把所有失效锚点判成健康——这正是自检页

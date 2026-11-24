@@ -41,7 +41,7 @@ import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.dpToPx
 import com.AARCNoa.zhiyou.ui.utils.findViewWhich
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
-import com.AARCNoa.zhiyou.ui.utils.theme.InjectedUiTheme
+import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.utils.HookHandle
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
@@ -113,10 +113,10 @@ object HomeSidePanel : SwitchFeature() {
     }
     private val pendingHostCancel = ThreadLocal<PendingHostCancel?>()
 
-    // 侧边栏实现方式：1=方式一（原版），2=方式二（WeKit 版）；与 HomeSidePanelFeature 同一 pref 互斥
+    // 侧边栏实现方式：1=内置面板，2=负一屏面板；与 HomeSidePanelFeature 同一 pref 互斥
     private val sidePanelMode by com.AARCNoa.zhiyou.preferences.WePrefs.prefOption("hsp_side_mode", 1)
 
-    /** 由「微信主页侧边栏」在方式二时调用，挂载 WeKit 负一屏面板。 */
+    /** 由「微信主页侧边栏」在方式二时调用，挂载负一屏面板。 */
     internal fun installPanel() {
         if (sidePanelMode != 2) return
         // 8.0.76 等版本上钱包类可能不同：静默反射查找，失败仅跳过余额读取
@@ -1197,7 +1197,7 @@ object HomeSidePanel : SwitchFeature() {
         }
 
         private fun isChattingVisible(): Boolean {
-            // WeKit 直接读 LauncherUI.currentFragmet (8.0.65-8.0.71 的拼写错误字段名)。
+            // 旧版直接读 LauncherUI.currentFragmet (8.0.65-8.0.71 的拼写错误字段名)。
             // 8.0.76 已移除该字段, 直接访问会抛 NoSuchMethodError (编译成 getCurrentFragmet() 调用),
             // 且该函数在主线程 Handler 回调里执行, 会直接崩微信。
             // 这里沿类层次反射查找, 缺失时视为不在聊天页。

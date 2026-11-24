@@ -62,7 +62,7 @@ object WeLogger {
      */
     private val writeQueue = ArrayBlockingQueue<WriteTask>(QUEUE_CAPACITY, true)
     private val droppedRecords = AtomicLong()
-    private val writerThread = Thread(::runWriter, "WeKit-Logger").apply {
+    private val writerThread = Thread(::runWriter, "WCX-Logger").apply {
         isDaemon = true
         start()
     }

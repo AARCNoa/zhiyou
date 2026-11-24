@@ -28,6 +28,15 @@ object Preferences {
      */
     const val CACHED_FRAMEWORK = "cached_framework"
 
+    /**
+     * 更新检查的缓存。
+     *
+     * 存清单原文而不是解析后的字段：清单会加字段，存原文以后不用改存储结构。
+     * 两个页面（主页提示、设置页检查）读同一份，谁先查到谁能用。
+     */
+    const val UPDATE_MANIFEST = "update_manifest"
+    const val UPDATE_CHECKED_AT = "update_checked_at"
+
     var verboseLog by prefOption(VERBOSE_LOG, false)
     var noDexResolve by prefOption(NO_DEX_RESOLVE, false)
     var showStartupToast by prefOption(SHOW_STARTUP_TOAST, false)
@@ -39,8 +48,4 @@ object Preferences {
     // 「密友功能」分类总开关（默认开启）
     var hiddenContactsMasterEnabled by prefOption(HIDDEN_CONTACTS_MASTER_ENABLED, true)
 
-    // use this when Google fucked up itself again
-//    var useActivityInsteadOfDialog: Boolean
-//        get() = false
-//        set(value) { WePrefs.putBool(USE_ACTIVITY_INSTEAD_OF_DIALOG, value) }
 }

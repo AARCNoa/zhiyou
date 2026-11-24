@@ -55,16 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Chevron_right
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Refresh
-import com.composables.icons.materialsymbols.outlined.Save
-import com.composables.icons.materialsymbols.outlined.Settings
 
 import com.AARCNoa.zhiyou.features.api.core.TextStatus
 import com.AARCNoa.zhiyou.features.api.core.WeTextStatusApi
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 internal fun homeSidePanelProfileDisplayName(profile: HomeSidePanelProfile, fallback: String): String =
     profile.nickname.ifBlank { fallback }
@@ -405,7 +399,7 @@ private fun HomeSidePanelProfileHeader(
                 )
                 if (!editing) {
                     Icon(
-                        MaterialSymbols.Outlined.Chevron_right,
+                        OutlinedIcons.Chevron_right,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -423,7 +417,7 @@ private fun HomeSidePanelProfileHeader(
                         .semantics { contentDescription = discardDescription },
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Close,
+                        OutlinedIcons.Close,
                         contentDescription = null,
                     )
                 }
@@ -435,7 +429,7 @@ private fun HomeSidePanelProfileHeader(
                         .semantics { contentDescription = saveDescription },
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Save,
+                        OutlinedIcons.Save,
                         contentDescription = null,
                     )
                 }
@@ -447,7 +441,7 @@ private fun HomeSidePanelProfileHeader(
                         .semantics { contentDescription = addDescription },
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Add,
+                        OutlinedIcons.Add,
                         contentDescription = null,
                     )
                 }
@@ -455,7 +449,7 @@ private fun HomeSidePanelProfileHeader(
         } else {
             IconButton(onClick = panelState::openPanelSettings) {
                 Icon(
-                    MaterialSymbols.Outlined.Settings,
+                    OutlinedIcons.Settings,
                     contentDescription = "侧栏设置",
                 )
             }
@@ -505,7 +499,7 @@ private fun HomeSidePanelStatus(
 
             HomeSidePanelStatusUiState.Error -> {
                 Icon(
-                    MaterialSymbols.Outlined.Close,
+                    OutlinedIcons.Close,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(16.dp),
@@ -518,7 +512,7 @@ private fun HomeSidePanelStatus(
                 )
                 IconButton(onClick = panelState::refreshStatus, modifier = Modifier.size(24.dp)) {
                     Icon(
-                        MaterialSymbols.Outlined.Refresh,
+                        OutlinedIcons.Refresh,
                         contentDescription = "刷新状态",
                         modifier = Modifier.size(16.dp),
                     )
@@ -573,7 +567,7 @@ internal fun HomeSidePanelToolbarContent(
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Chevron_right,
+                    imageVector = OutlinedIcons.Chevron_right,
                     contentDescription = null,
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -653,7 +647,7 @@ private fun HomeSidePanelToolbarStatus(
 
             HomeSidePanelStatusUiState.Error -> {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Close,
+                    imageVector = OutlinedIcons.Close,
                     contentDescription = null,
                     modifier = Modifier.size(11.dp),
                     tint = MaterialTheme.colorScheme.error,

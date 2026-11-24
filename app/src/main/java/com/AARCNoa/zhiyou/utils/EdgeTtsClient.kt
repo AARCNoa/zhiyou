@@ -41,8 +41,10 @@ object EdgeTtsClient : AutoCloseable {
     private const val TAG = "EdgeTTS"
     private const val TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
 
-    // FIXME: remember to bump this version
-    // 需要和 Edge 浏览器版本保持接近, edge-tts 原库会跟着 Chromium 版本定期更新, 过期太久可能导致服务端返回 403
+    /**
+     * 要跟 Edge 浏览器版本保持接近：edge-tts 上游随 Chromium 定期更新，
+     * 过期太久服务端会返回 403。升级 Chromium 时记得改这里。
+     */
     private const val CHROMIUM_FULL_VERSION = "150.0.4078.48"
 
     private const val WSS_URL = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1"

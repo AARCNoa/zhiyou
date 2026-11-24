@@ -29,11 +29,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Chevron_right
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.SoftCard
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 
@@ -140,7 +140,7 @@ fun AiNavRow(
                 )
             }
             Icon(
-                imageVector = MaterialSymbols.Outlined.Chevron_right,
+                imageVector = OutlinedIcons.Chevron_right,
                 contentDescription = null,
                 tint = WxPalette.textTertiary(),
                 modifier = Modifier
@@ -273,8 +273,52 @@ fun AiSecondaryButton(
     }
 }
 
-/** 空态卡：一句说明 + 一个动作。 */
+/**
+ * 危险动作按钮：红底白字，尺寸与 [AiSecondaryButton] 一致。
+ *
+ * 只用于「不可恢复」的二次确认（清空提醒、删除档案）；普通操作用 [AiSecondaryButton]。
+ */
 @Composable
+fun AiDangerButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(WxPalette.Danger)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+    }
+}
+
+/**
+ * 0.5dp 细分隔线。
+ *
+ * 列表行之间统一用它，不要在调用处再写 `height + background + padding` 三件套 ——
+ * 那套写法在 AI 页里散着 10 份，改一个粗细要改 10 处。
+ */
+@Composable
+fun AiDivider(
+    startPadding: Dp = 0.dp,
+    endPadding: Dp = 0.dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(start = startPadding, end = endPadding)
+            .height(0.5.dp)
+            .background(WxPalette.divider()),
+    )
+}
+
+/** 空态卡：一句说明 + 一个动作。 */@Composable
 fun AiEmptyCard(
     title: String,
     body: String,

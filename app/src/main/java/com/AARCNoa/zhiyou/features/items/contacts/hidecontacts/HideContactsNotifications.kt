@@ -70,10 +70,10 @@ object HideContactsNotifications : ApiFeature(), IResolveDex {
      * cancelling means `result = null`.
      *
      * Verified identical on both trees:
-     * - 8.0.76 `com/tencent/mm/booter/notification/x.java:231`
+     * - 8.0.76 `com/tencent/mm/booter/notification/x.java`
      *   `public static void d(x xVar, String username, String str, int i17, int i18, boolean z17)`,
      *   anchor string at `:249`
-     * - 8.0.69 `com/tencent/mm/booter/notification/x.java:319`
+     * - 8.0.69 `com/tencent/mm/booter/notification/x.java`
      *   `public static void d(x xVar, String talker, String str, int i16, int i17, boolean z16)`,
      *   anchor string at `:394`
      *
@@ -97,10 +97,10 @@ object HideContactsNotifications : ApiFeature(), IResolveDex {
      *
      * Verified on both trees (only the obfuscated method name and the cmd-proto type differ, neither
      * of which the matcher depends on):
-     * - 8.0.76 `com/tencent/mm/booter/notification/e0.java:444`
+     * - 8.0.76 `com/tencent/mm/booter/notification/e0.java`
      *   `public void f(long j17, String str, String str2, String str3, String str4, Map map, j4 j4Var)`,
      *   anchor string at `:490`
-     * - 8.0.69 `com/tencent/mm/booter/notification/e0.java:419`
+     * - 8.0.69 `com/tencent/mm/booter/notification/e0.java`
      *   `public void g(long j16, String str, String str2, String str3, String str4, Map map, i4 i4Var)`,
      *   anchor string at `:476`
      *

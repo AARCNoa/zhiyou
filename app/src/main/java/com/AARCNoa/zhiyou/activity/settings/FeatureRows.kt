@@ -28,11 +28,10 @@ import com.AARCNoa.zhiyou.features.core.ClickableFeature
 import com.AARCNoa.zhiyou.features.core.FeaturesProvider
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.preferences.WePrefs
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Settings
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
@@ -41,8 +40,6 @@ import top.yukonga.miuix.kmp.basic.Text
 //  功能清单的两行：分类行（CategoryRow）与功能开关行（CatRow）
 //
 //  主页搜索结果、分类半屏、已启用半屏共用这两个组件，保证同一个功能在哪里都长得一样。
-//  文件原名叫 FeaturesPager.kt —— 「功能」标签页删除后它已经不再是 pager，
-//  只剩这两行，故改名。
 // ---------------------------------------------------------------------------
 
 /**
@@ -62,23 +59,6 @@ internal val userVisibleFeatures: List<BaseFeature> =
 /** [userVisibleFeatures] 里真正带开关的项；统计与「已启用」清单都以此为准。 */
 internal val toggleableFeatures: List<SwitchFeature> =
     userVisibleFeatures.filterIsInstance<SwitchFeature>()
-
-/**
- * 分类专属色：让每个分类在列表里一眼可辨（不是靠文字读出来的）。
- *
- * 这里全部写死字面量，**故意不引用 [WxPalette]**：分类是配色方案，不是状态语义，
- * 之前借用 Ok/Warning 导致「改状态绿 → 分类色跟着变」。
- */
-internal val CATEGORY_COLORS = listOf(
-    Color(0xFF3D7EFF),
-    Color(0xFF00D4A0),
-    Color(0xFF8B5CF6),
-    Color(0xFFFF8A3D),
-    Color(0xFF00B8D9),
-    Color(0xFFFF5B8A),
-    Color(0xFF12D18E),
-    Color(0xFFFFB020),
-)
 
 /** 分类行：圆角图标 + 分类名 + 启用概况 + 小进度条 + 右箭头（主页分类半屏卡片复用）。 */
 @Composable
@@ -232,7 +212,7 @@ internal fun CatRow(
                 if (item is ClickableFeature) {
                     Spacer(Modifier.width(4.dp))
                     Icon(
-                        imageVector = MaterialSymbols.Outlined.Settings,
+                        imageVector = OutlinedIcons.Settings,
                         contentDescription = "可配置",
                         modifier = Modifier.size(15.dp),
                         tint = WxPalette.textSecondary(),

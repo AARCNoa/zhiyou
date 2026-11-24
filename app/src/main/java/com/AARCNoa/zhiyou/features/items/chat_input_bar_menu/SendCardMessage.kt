@@ -1,7 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.chat_input_bar_menu
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Send_time_extension
 
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.ui.WeChatInputBarMenuApi
@@ -9,6 +7,7 @@ import com.AARCNoa.zhiyou.features.api.ui.WeCurrentConversationApi
 import com.AARCNoa.zhiyou.features.core.Feature
 
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.android.showToast
 
 @Feature(
@@ -22,7 +21,7 @@ object SendCardMessage : SwitchFeature() {
         listOf(
             WeChatInputBarMenuApi.ActionItem(
                 id = "send_card_message",
-                icon = MaterialSymbols.Outlined.Send_time_extension,
+                icon = OutlinedIcons.Send_time_extension,
                 label = ("发送卡片消息"),
                 onClick = { context, chatFooter ->
                     val currentConv = WeCurrentConversationApi.value

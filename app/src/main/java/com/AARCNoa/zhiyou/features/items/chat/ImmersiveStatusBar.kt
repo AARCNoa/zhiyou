@@ -11,6 +11,7 @@ import com.tencent.mm.ui.chatting.ChattingUI
 import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.utils.statusBarHeight
 import com.AARCNoa.zhiyou.utils.WeLogger
 
 private const val TAG = "ImmersiveStatusBar"
@@ -150,8 +151,8 @@ object ImmersiveStatusBar : SwitchFeature() {
             // 向上延伸状态栏高度
             if (backgroundView.layoutParams is ViewGroup.MarginLayoutParams) {
                 val lp = backgroundView.layoutParams as ViewGroup.MarginLayoutParams
-                val statusBarHeight = getStatusBarHeight(activity)
-                lp.topMargin = -statusBarHeight
+                val statusBarH = activity.statusBarHeight(24)
+                lp.topMargin = -statusBarH
                 backgroundView.layoutParams = lp
             }
 
@@ -223,7 +224,7 @@ object ImmersiveStatusBar : SwitchFeature() {
         runCatching {
             val rootView = activity.window?.decorView?.findViewById<ViewGroup>(android.R.id.content)
                 ?: return
-            val statusBarHeight = getStatusBarHeight(activity)
+            val statusBarH = activity.statusBarHeight(24)
 
             // 查找聊天标题栏，为其添加状态栏高度的顶部内边距
             val toolbar = findChatToolbar(rootView)
@@ -233,11 +234,11 @@ object ImmersiveStatusBar : SwitchFeature() {
                 }
                 toolbar.setPadding(
                     toolbar.paddingLeft,
-                    statusBarHeight,
+                    statusBarH,
                     toolbar.paddingRight,
                     toolbar.paddingBottom
                 )
-                WeLogger.d(TAG, "Toolbar paddingTop 已调整为: ${statusBarHeight}px")
+                WeLogger.d(TAG, "Toolbar paddingTop 已调整为: ${statusBarH}px")
             }
 
             // 不再给内容根视图加状态栏 padding：
@@ -379,20 +380,5 @@ object ImmersiveStatusBar : SwitchFeature() {
             }
         }
         return null
-    }
-
-    /**
-     * 获取状态栏高度
-     */
-    private fun getStatusBarHeight(activity: Activity): Int {
-        val resourceId = activity.resources.getIdentifier(
-            "status_bar_height", "dimen", "android"
-        )
-        return if (resourceId > 0) {
-            activity.resources.getDimensionPixelSize(resourceId)
-        } else {
-            // 默认估算值 (24dp)
-            (24 * activity.resources.displayMetrics.density).toInt()
-        }
     }
 }

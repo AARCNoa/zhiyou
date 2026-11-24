@@ -264,12 +264,21 @@ class DexMethodDelegate internal constructor(
 
     /** 全部候选转成可反射 hook 的 java Method；解析失败的候选自动丢弃。 */
     fun candidateMethods(): List<Method> = runCatching {
-        candidates.mapNotNull { cd ->
+        val resolved = candidates.mapNotNull { cd ->
             runCatching {
                 DexMethodDescriptor(cd.className, cd.methodName, cd.methodSign)
                     .getMethodInstance(ClassLoaders.HOST)
             }.getOrNull()
         }
+        if (resolved.isNotEmpty()) return@runCatching resolved
+
+        // 缓存命中时只走 loadDescriptor，find() 不会执行，candidates 永远是空的。
+        // 这里必须按描述符回退一个方法：否则调用方全部「no candidate method resolved」
+        // 而跳过 hook —— 表现为首次启动正常、之后每次启动功能都不生效（实测
+        // 自定义好友本地头像、拦截来电铃声、通话限制都踩到这一点）。
+        val desc = descriptor ?: return@runCatching emptyList()
+        if (desc.descriptor == PLACEHOLDER_METHOD_DESCRIPTOR) return@runCatching emptyList()
+        listOfNotNull(runCatching { desc.getMethodInstance(ClassLoaders.HOST) }.getOrNull())
     }.getOrDefault(emptyList())
 
     val method: Method
@@ -296,12 +305,7 @@ class DexMethodDelegate internal constructor(
     @Suppress("NOTHING_TO_INLINE")
     inline fun setDescriptor(m: MethodData) = setDescriptor(DexMethodDescriptor(m.className, m.methodName, m.methodSign))
 
-    /**
-     * 是否**不可用**（占位符 或 **尚未解析**）。
-     *
-     * `descriptor == null` 必须算进来：解析未完成时调用方守卫会被 `false` 放行，
-     * 随后 `.method` 抛 `Method not found for key: ...`（实测 8.0.76 反复抛出 15+ 次）。
-     */
+    /** 不可用：占位符或尚未解析。`descriptor == null` 为何必须算进来，见 [DexClassDelegate.isPlaceholder]。 */
     override val isPlaceholder
         get() = descriptor == null || descriptor!!.descriptor == PLACEHOLDER_METHOD_DESCRIPTOR
 
@@ -640,7 +644,7 @@ private fun <T> safeIndex(results: List<T>, index: Int, key: String, kind: Strin
     return results.lastIndex.coerceAtLeast(0)
 }
 
-// ---- WeKit-compat: `.data` DexKit metadata accessors (merged official features use these) ----
+// ---- 上游兼容：`.data` DexKit metadata 访问器（合并进来的官方功能会用到）----
 
 val DexClassDelegate.data: org.luckypray.dexkit.result.ClassData
     get() = cachedData ?: com.AARCNoa.zhiyou.dexkit.resolution.DexResolutionContext.dexKit

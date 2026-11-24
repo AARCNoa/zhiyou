@@ -41,22 +41,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Auto_awesome
-import com.composables.icons.materialsymbols.outlined.Check_circle
-import com.composables.icons.materialsymbols.outlined.Chevron_right
-import com.composables.icons.materialsymbols.outlined.Extension
-import com.composables.icons.materialsymbols.outlined.Info
-import com.composables.icons.materialsymbols.outlined.Search
-import com.composables.icons.materialsymbols.outlined.Smartphone
 import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.constants.PackageNames
 import com.AARCNoa.zhiyou.constants.Preferences
 import com.AARCNoa.zhiyou.features.ai.AiConfig
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.SoftDivider
 import com.AARCNoa.zhiyou.ui.content.BottomSheetHost
 import com.AARCNoa.zhiyou.ui.content.SearchField
@@ -68,6 +64,9 @@ import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.ui.style.rememberGrowNumber
 import com.AARCNoa.zhiyou.utils.HostFramework
 import com.AARCNoa.zhiyou.utils.HostInfo
+import com.AARCNoa.zhiyou.update.UpdateChecker
+import com.AARCNoa.zhiyou.update.UpdateManifest
+import com.AARCNoa.zhiyou.update.UpdateResult
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -158,7 +157,7 @@ fun HomePager(
     sheetOpen: Boolean = false,
 ) {
     val context = LocalContext.current
-    // 分子分母同源：都不含内部 API 服务与当前版本不适用项，否则永远差 40 项。
+    // 分子分母同源：都不含内部服务与当前版本不适用项，否则分母会凭空多出几十项。
     val toggleable = toggleableFeatures
     val enabledCount = remember(sheetOpen) {
         toggleable.count { it.effectiveEnabled }
@@ -209,6 +208,16 @@ fun HomePager(
     val wechatVersion = remember { safeGetWeChatVersionInfo(context) }
     val framework = remember { HostFramework.display() }
 
+    // 更新提示：先读缓存（上次检查的结果），再按 24 小时节流静默查一次。
+    // 失败不弹不改界面 —— 这里只是顺带提醒，报错交给设置页的手动检查。
+    var availableUpdate by remember { mutableStateOf(UpdateChecker.cachedAvailable()) }
+    var updateDialog by remember { mutableStateOf<UpdateDialogState>(UpdateDialogState.Hidden) }
+    LaunchedEffect(Unit) {
+        // 直接用 check() 的返回值：再读一次 cachedAvailable() 是本该一致的第二条来源，
+        // 真出现「弹窗说有新版、行上没提示」时反而不容易查。
+        availableUpdate = UpdateChecker.check() as? UpdateResult.Available
+    }
+
     MiuixListScaffold(title = "", showTopBar = false) {
         // ---- 品牌头：左「知友」+ 右搜索图标 ----
         item {
@@ -244,7 +253,7 @@ fun HomePager(
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { searchExpanded = true }) {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Search,
+                            imageVector = OutlinedIcons.Search,
                             contentDescription = "搜索功能",
                             tint = WxPalette.textPrimary(),
                         )
@@ -267,7 +276,18 @@ fun HomePager(
                     onOpen = onOpenSheet,
                 )
             }
-            homeCard("info") { InfoCard(wechatVersion, framework) }
+            homeCard("info") {
+                InfoCard(
+                    wechatVersion = wechatVersion,
+                    framework = framework,
+                    update = availableUpdate?.manifest,
+                    onOpenUpdate = {
+                        availableUpdate?.let {
+                            updateDialog = UpdateDialogState.Available(it.manifest, it.asset)
+                        }
+                    },
+                )
+            }
         } else {
             // ---- 搜索结果：直接替换主页内容，就地开关 ----
             if (filteredItems.isEmpty()) {
@@ -304,6 +324,12 @@ fun HomePager(
             Spacer(Modifier.height(CONTENT_BOTTOM_INSET))
         }
     }
+
+    // 首页只从「模块版本」那行进弹窗，不会出现「失败」态，因此不给重试。
+    UpdateDialogHost(
+        state = updateDialog,
+        onDismiss = { updateDialog = UpdateDialogState.Hidden },
+    )
 }
 
 /**
@@ -329,7 +355,7 @@ internal fun HomeSheetHost(
     // 二级页面存在时优先消费返回键：先回分类列表，而不是整个收起。
     BackHandler(enabled = category != null) { category = null }
 
-    // 进/出分类都从顶部开始，避免沿用上一份清单的滚动位置（286 项滚到一半再进分类会很怪）。
+    // 进/出分类都从顶部开始，避免沿用上一份清单的滚动位置（两百多项滚到一半再进分类会很怪）。
     val listState = rememberLazyListState()
     LaunchedEffect(category) { listState.scrollToItem(0) }
 
@@ -443,7 +469,8 @@ internal fun HomeSheetHost(
                                 icon = entry.second,
                                 title = name,
                                 subtitle = if (total > 0) "已启用 $on/$total" else "暂无功能",
-                                tint = CATEGORY_COLORS[index % CATEGORY_COLORS.size],
+                                // 图标统一微信绿：分类靠名字区分，不再用八种彩色各说各话。
+                                tint = WxPalette.Primary,
                                 progress = rememberGrowNumber(
                                     if (total > 0) on.toFloat() / total else 0f,
                                     durationMs = 600 + index * 60,
@@ -628,7 +655,7 @@ private fun ActivationCard(onOpenHealth: () -> Unit) {
     val anchors = remember { ModuleDiagnostics.anchors() }
     val (okCount, totalCount) = ModuleDiagnostics.anchorStats(anchors)
     // 与自检页同一口径：解析不到、且没有「已由新路径替代 / 微信已移除」说明的，才算待适配。
-    val pending = anchors.count { !it.resolved && it.supersededNote == null && it.unavailableReason == null }
+    val pending = anchors.count { it.needsAdaptation() }
     val healthy = pending == 0
     val accent = if (healthy) WxPalette.Ok else WxPalette.Warning
 
@@ -642,7 +669,7 @@ private fun ActivationCard(onOpenHealth: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Check_circle,
+                    imageVector = OutlinedIcons.Check_circle,
                     contentDescription = null,
                     tint = accent,
                     modifier = Modifier.size(25.dp),
@@ -670,24 +697,24 @@ private fun ActivationCard(onOpenHealth: () -> Unit) {
                 )
             }
             // 自检入口做成独立按钮：整卡可点会让用户不知道点哪里、也不知道点下去是做什么。
+            // 纯文字入口：不再画胶囊底，与卡片里其它文字同一层级，只靠绿色提示可点。
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(accent.copy(alpha = 0.12f))
                     .clickable { onOpenHealth() }
-                    .padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+                    .padding(start = 8.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "自检",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = accent,
+                    color = WxPalette.Primary,
                 )
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Chevron_right,
+                    imageVector = OutlinedIcons.Chevron_right,
                     contentDescription = "查看自检详情",
-                    tint = accent,
+                    tint = WxPalette.Primary,
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -738,7 +765,7 @@ private fun AiActivationCard() {
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Auto_awesome,
+                    imageVector = OutlinedIcons.Auto_awesome,
                     contentDescription = null,
                     tint = accent,
                     modifier = Modifier.size(25.dp),
@@ -761,25 +788,24 @@ private fun AiActivationCard() {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            // 与激活卡的「自检」按钮同形：胶囊底 + 文字 + 箭头。
+            // 与激活卡的「自检」同形：纯文字 + 箭头，无底圈。
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(accent.copy(alpha = 0.12f))
                     .clickable { showAiConfigDialog(context) }
-                    .padding(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+                    .padding(start = 8.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "配置",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = accent,
+                    color = WxPalette.Primary,
                 )
                 Icon(
-                    imageVector = MaterialSymbols.Outlined.Chevron_right,
+                    imageVector = OutlinedIcons.Chevron_right,
                     contentDescription = "配置 AI 接口",
-                    tint = accent,
+                    tint = WxPalette.Primary,
                     modifier = Modifier.size(17.dp),
                 )
             }
@@ -871,33 +897,38 @@ private fun StatTile(
 }
 
 /**
- * 模块信息卡：只放三项用户真正会看的——激活框架、微信版本、模块版本。
+ * 模块信息卡：只放用户真正会看的三项——激活框架、微信版本、模块版本。
+ * 构建时间、设备型号、系统架构这些只在反馈问题时偶尔需要，不占位置。
  *
- * 构建时间 / Android 版本 / 设备型号 / 系统架构对「模块能不能用」没有帮助，
- * 只在反馈问题时偶尔需要，已移除，避免一屏全是与使用无关的技术细节。
+ * 「模块版本」那行兼任更新提醒：只有真有新版时才多出一截绿色文字并可点，
+ * 没有更新时与平时一致——常驻一个「已是最新」只是噪声。
  */
 @Composable
 private fun InfoCard(
     wechatVersion: String?,
     framework: String,
+    update: UpdateManifest?,
+    onOpenUpdate: () -> Unit,
 ) {
     HomeCard(contentPadding = PaddingValues(0.dp)) {
         InfoRow(
-            icon = MaterialSymbols.Outlined.Extension,
+            icon = OutlinedIcons.Extension,
             title = "激活框架",
             content = framework,
             showDivider = true,
         )
         InfoRow(
-            icon = MaterialSymbols.Outlined.Smartphone,
+            icon = OutlinedIcons.Smartphone,
             title = "微信版本",
             content = wechatVersion ?: "未检测到微信",
             showDivider = true,
         )
         InfoRow(
-            icon = MaterialSymbols.Outlined.Info,
+            icon = OutlinedIcons.Info,
             title = "模块版本",
             content = "${BuildConfig.BRAND} ${BuildConfig.VERSION_NAME}",
+            accent = update?.let { "发现新版本 ${it.versionName}" },
+            onClick = if (update != null) onOpenUpdate else null,
             showDivider = false,
         )
     }
@@ -909,21 +940,24 @@ private fun InfoRow(
     title: String,
     content: String,
     showDivider: Boolean,
+    /** 副行末尾追加的一截主色文字（目前只有「发现新版本 x.x」）。 */
+    accent: String? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // 图标统一用底部导航「未选中」的中性色：卡片里不再出现彩色图标，
-            // 颜色只留给状态（激活卡的绿/橙）和分类（CATEGORY_COLORS）。
+            // 与分类图标同一套：装饰性图标统一微信绿；颜色只留给状态（激活卡的绿/橙）。
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceSecondary,
+                tint = WxPalette.Primary,
                 modifier = Modifier.size(22.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -935,9 +969,25 @@ private fun InfoRow(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = content,
+                    text = buildAnnotatedString {
+                        append(content)
+                        if (accent != null) {
+                            append(" · ")
+                            withStyle(SpanStyle(color = WxPalette.Primary)) { append(accent) }
+                        }
+                    },
                     fontSize = 13.sp,
                     color = WxPalette.textSecondary(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (onClick != null) {
+                Icon(
+                    imageVector = OutlinedIcons.Chevron_right,
+                    contentDescription = null,
+                    tint = WxPalette.textTertiary(),
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }

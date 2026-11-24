@@ -48,6 +48,31 @@ object WePacketDispatcher : ApiFeature(), IResolveDex {
     /** 只在首次遇到某个回调类型时打一条，避免每条消息都刷日志。 */
     private val loggedSkipClasses: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * 把 `parseFrom(bytes)` 的结果写回 wrapper 的 `a` 字段。
+     *
+     * protobuf 的 `parseFrom` 是静态工厂（`parseFrom(byte[]) -> XxxResp`），返回的是**新对象**，
+     * 不会修改传入的那个。旧实现拿到篡改后的字节后调用它却把返回值丢掉了，容器里的 `a` 字段
+     * 一个字节都没变 —— 配了响应篡改规则也毫无效果。
+     *
+     * 失败返回 null（调用方只记日志，不影响原响应）。
+     */
+    private fun applyParsedPb(wrapper: Any, current: Any, tampered: ByteArray): Any? = runCatching {
+        val method = (current.javaClass.declaredMethods.asSequence() + current.javaClass.methods.asSequence())
+            .firstOrNull {
+                it.name == "parseFrom" &&
+                    it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0] == ByteArray::class.java &&
+                    java.lang.reflect.Modifier.isStatic(it.modifiers)
+            } ?: return@runCatching null
+        method.isAccessible = true
+        val parsed = method.invoke(null, tampered) ?: return@runCatching null
+        wrapper.reflekt().setField("a", parsed)
+        parsed
+    }.onFailure {
+        WeLogger.w(TAG, "apply parsed pb failed: ${it.javaClass.simpleName} ${it.message}")
+    }.getOrNull()
+
     override fun onEnable() {
         Handler(Looper.getMainLooper()).postDelayed(3000) {
             try {
@@ -141,11 +166,18 @@ object WePacketDispatcher : ApiFeature(), IResolveDex {
                                                             cgiId,
                                                             originalRespBytes
                                                         )?.let { tampered ->
-                                                            respPbObjRef.invokeMethod("parseFrom", tampered)
-                                                            WeLogger.i(
-                                                                TAG,
-                                                                "tampered response (PB): $uri"
-                                                            )
+                                                            // parseFrom 返回新对象，必须写回 wrapper 才生效。
+                                                            if (applyParsedPb(respWrapper, respPbObj, tampered) != null) {
+                                                                WeLogger.i(
+                                                                    TAG,
+                                                                    "tampered response (PB): $uri"
+                                                                )
+                                                            } else {
+                                                                WeLogger.w(
+                                                                    TAG,
+                                                                    "篡改后的响应没能写回（parseFrom 未找到），本次按原样返回: $uri"
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }

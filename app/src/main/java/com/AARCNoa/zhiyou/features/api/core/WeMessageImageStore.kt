@@ -1,13 +1,12 @@
 package com.AARCNoa.zhiyou.features.api.core
 
 import android.database.Cursor
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import com.tencent.mm.plugin.gif.MMWXGFJNI
 import dev.ujhhgtg.reflekt.utils.createInstance
 import dev.ujhhgtg.reflekt.utils.toClass
 import com.AARCNoa.zhiyou.utils.HostInfo
 import com.AARCNoa.zhiyou.utils.WeLogger
+import com.AARCNoa.zhiyou.utils.image.ImageCompress
 import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import com.AARCNoa.zhiyou.utils.fs.asPath
 import java.lang.reflect.Proxy
@@ -223,32 +222,8 @@ internal object WeMessageImageStore {
             } else {
                 file.readBytes()
             }
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(raw, 0, raw.size, bounds)
-            val longest = maxOf(bounds.outWidth, bounds.outHeight)
-            if (longest <= 0) return null
-            // 先按 2 的幂降采样到不超过 2 倍目标，再精确缩放：一次大图解码只占一份内存。
-            var sample = 1
-            while (longest / sample > maxSide * 2) sample *= 2
-            val bitmap = BitmapFactory.decodeByteArray(
-                raw, 0, raw.size, BitmapFactory.Options().apply { inSampleSize = sample },
-            ) ?: return null
-            val scaled = if (maxOf(bitmap.width, bitmap.height) > maxSide) {
-                val ratio = maxSide.toFloat() / maxOf(bitmap.width, bitmap.height)
-                Bitmap.createScaledBitmap(
-                    bitmap,
-                    (bitmap.width * ratio).toInt().coerceAtLeast(1),
-                    (bitmap.height * ratio).toInt().coerceAtLeast(1),
-                    true,
-                )
-            } else {
-                bitmap
-            }
-            val out = java.io.ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
-            if (scaled !== bitmap) scaled.recycle()
-            bitmap.recycle()
-            out.toByteArray()
+            // 压缩与朋友圈评论共用一份：同一张图在两处必须得到同样大小与质量。
+            ImageCompress.jpeg(raw, maxSide, quality)
         } catch (e: Exception) {
             WeLogger.w(TAG, "readImageJpeg failed: msgSvrId=" + msgSvrId, e)
             null

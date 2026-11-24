@@ -273,23 +273,6 @@ object FeaturesLoader {
         if (Preferences.noDexResolve) return
         if (!TargetProcesses.isInMain) return
 
-        // 版本兼容性检测：大量Hook失效时输出警告日志并弹窗提示用户
-        try {
-            val (compatible, message) = VersionCompat.checkCompatibility(
-                brokenItems.size,
-                FeaturesProvider.ALL_HOOK_ITEMS.filterIsInstance<IResolveDex>().size
-            )
-            if (!compatible) {
-                WeLogger.w(TAG, "版本兼容性警告: $message")
-                // 弹窗提示用户当前微信版本部分功能暂未适配
-                showToast("当前微信版本部分功能暂未适配，等待模块更新")
-            } else {
-                WeLogger.i(TAG, "版本兼容性: $message")
-            }
-        } catch (e: Throwable) {
-            WeLogger.e(TAG, "版本兼容性检测异常", e)
-        }
-
         // 不再弹「DEX 适配」对话框：这条路本来就是自动修复，弹窗只增加了「点重启」这一步。
         // 改成后台静默修复 + 结束时一条 toast，失败才提示用户看日志。
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
@@ -315,12 +298,54 @@ object FeaturesLoader {
                 }
             }
 
+            // 版本兼容性只在「修复完之后仍然解析不到」时才提示。
+            //
+            // 修复前判会把「微信升级后首次启动」误报成不兼容：那一刻 dex 缓存的 key 全变，
+            // 每一项都要重新解析，失效功能数等于功能总数，直接命中最高档
+            // 「兼容性较差，N/N 个功能暂未适配」并弹提示 —— 实际几秒后就适配完了。
+            val allItems = FeaturesProvider.ALL_HOOK_ITEMS.filterIsInstance<IResolveDex>()
+            val stillBroken = countFeaturesNeedingAdaptation(allItems)
+            val compatible = reportCompatibility(stillBroken, allItems.size)
+
             val message = when {
+                !compatible -> "当前微信版本部分功能暂未适配，等待模块更新"
+                repaired == 0 && failed.isEmpty() -> null
                 failed.isEmpty() -> "已自动适配 $repaired 个功能，重启微信后生效"
                 repaired == 0 -> "${failed.size} 个功能适配失败，详见日志"
                 else -> "$repaired 个已适配，${failed.size} 个失败（详见日志）"
             }
-            withContext(Dispatchers.Main) { runCatching { showToast(message) } }
+            if (message != null) {
+                withContext(Dispatchers.Main) { runCatching { showToast(message) } }
+            }
         }
+    }
+
+    /**
+     * 还剩几个功能解析不到锚点。
+     *
+     * 口径与 [logUnresolvedDelegates] 一致：已登记 `supersededAnchors` 的旧锚点、
+     * 以及整个功能被判为「当前版本不支持」的，都不算待适配。
+     */
+    private fun countFeaturesNeedingAdaptation(items: List<IResolveDex>): Int =
+        items.count { item ->
+            val base = item as? BaseFeature
+            val wholeDisabled = runCatching { base?.unavailableReason != null }.getOrDefault(false)
+            if (wholeDisabled) {
+                false
+            } else {
+                val declared = base?.supersededAnchors.orEmpty()
+                item.dexDelegates.any { it.isPlaceholder && it.key !in declared }
+            }
+        }
+
+    /** 记录版本兼容性结论；不兼容时返回 false，由调用方决定是否提示用户。 */
+    private fun reportCompatibility(failed: Int, total: Int): Boolean = try {
+        val (compatible, message) = VersionCompat.checkCompatibility(failed, total)
+        if (compatible) WeLogger.i(TAG, "版本兼容性: $message")
+        else WeLogger.w(TAG, "版本兼容性警告: $message")
+        compatible
+    } catch (e: Throwable) {
+        WeLogger.e(TAG, "版本兼容性检测异常", e)
+        true
     }
 }

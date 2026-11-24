@@ -73,7 +73,7 @@ internal fun exportConfig(context: Context) {
                             }
                         }
                         // 数据文件不属于 WePrefs：聊天分组存在 moduleData/conversation_groups.json，
-                        // 之前导出只打包偏好，恢复后分组全部失效（用户实测反馈）。这里一并打包。
+                        // 只打包偏好时，恢复后分组会全部失效；这里连分组一起打包。
                         runCatching {
                             val groupsFile = KnownPaths.moduleData / "conversation_groups.json"
                             if (groupsFile.exists()) {

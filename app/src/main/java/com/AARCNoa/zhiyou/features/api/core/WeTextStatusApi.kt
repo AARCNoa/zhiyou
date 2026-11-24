@@ -106,23 +106,29 @@ object WeTextStatusApi : ApiFeature(), IResolveDex {
         val latestStatusMethod = dexKit.getMethodData(
             methodLatestStatusByUsername.getDescriptorString()!!,
         )!!
-        val storageInterface = latestStatusMethod.declaredClass!!.interfaces.single { candidate ->
+        val storageInterface = latestStatusMethod.declaredClass!!.interfaces.singleOrNull { candidate ->
             candidate.methods.any { method ->
                 method.methodName == latestStatusMethod.methodName &&
                     method.paramTypeNames == latestStatusMethod.paramTypeNames &&
                     method.returnTypeName == latestStatusMethod.returnTypeName
             }
+        } ?: run {
+            WeLogger.e(TAG, "状态存储接口不唯一（${latestStatusMethod.declaredClass?.name}），个性状态不可用")
+            return
         }
         val storageAccessor = dexKit.findMethod {
             matcher {
                 paramTypes()
                 returnType(storageInterface.name)
             }
-        }.single { candidate ->
+        }.singleOrNull { candidate ->
             candidate.declaredClass!!.fields.any { field ->
                 field.typeName == candidate.declaredClassName &&
                     Modifier.isStatic(field.modifiers)
             }
+        } ?: run {
+            WeLogger.e(TAG, "状态存储访问器不唯一，个性状态不可用")
+            return
         }
 
         val topicInfoMethod = dexKit.getMethodData(
@@ -138,14 +144,20 @@ object WeTextStatusApi : ApiFeature(), IResolveDex {
                 returnType(iconHelperType)
                 modifiers(Modifier.STATIC)
             }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "图标助手访问器不唯一，个性状态不可用")
+            return
+        }
         val statusDescriptionMethod = dexKit.findMethod {
             matcher {
                 declaredClass(iconHelperType)
                 paramTypes(topicInfoMethod.returnTypeName)
                 returnType(String::class.java)
             }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "状态描述方法不唯一，个性状态不可用")
+            return
+        }
         val statusType = latestStatusMethod.returnTypeName
         val currentStatusActionsMethod = dexKit.findMethod {
             matcher {
@@ -156,8 +168,11 @@ object WeTextStatusApi : ApiFeature(), IResolveDex {
                     "show, menu empty",
                 )
             }
-        }.single { candidate ->
+        }.singleOrNull { candidate ->
             candidate.usesFieldThroughDirectInvoke("field_UserName")
+        } ?: run {
+            WeLogger.e(TAG, "状态操作菜单方法不唯一，个性状态不可用")
+            return
         }
 
         classTextStatusService.setDescriptor(storageAccessor.declaredClass!!)
@@ -198,8 +213,10 @@ object WeTextStatusApi : ApiFeature(), IResolveDex {
     fun openCurrentStatusActions(context: Context, wxId: String): Boolean = runCatching {
         val current = readCurrentStatus(wxId) ?: return false
         val actionMethod = methodCurrentStatusActions.method
-        val showParam = actionMethod.declaringClass.declaredConstructors
-            .single().parameterTypes.single().createInstance()
+        // 构造器与参数类型都按「唯一」推断；形状变了就返回 false，不要把异常抛给点击路径。
+        val ctor = actionMethod.declaringClass.declaredConstructors.singleOrNull() ?: return false
+        val showParamType = ctor.parameterTypes.singleOrNull() ?: return false
+        val showParam = showParamType.createInstance()
         val logic = actionMethod.declaringClass.createInstance(showParam)
         logic.reflekt().firstField {
             type = Context::class

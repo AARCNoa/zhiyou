@@ -7,6 +7,7 @@ import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
 import com.AARCNoa.zhiyou.features.items.contacts.HideContacts
 import com.AARCNoa.zhiyou.utils.WeLogger
+import java.lang.reflect.Method
 import java.util.LinkedList
 
 private const val TAG = "HideContacts.Lists"
@@ -64,7 +65,7 @@ internal fun HideContacts.installListHooks() {
  * `ui/chatting/atsomeone/AtSomeoneLiveList.e`).
  *
  * The argument is **substituted, not mutated**. `MvvmList.l()` calls `e(this.f182257p)`
- * (`plugin/mvvmlist/MvvmList.java:373` on 8.0.76, `:373` on 8.0.74, `:361` on 8.0.69), i.e. `args[0]`
+ * (8.0.76 / 8.0.74 / 8.0.69 上都是 `plugin/mvvmlist/MvvmList.java` 的同一个方法), i.e. `args[0]`
  * *is* the list's persistent snapshot field, not a per-call copy. An earlier version of this hook
  * called `removeAll` on it, which deleted the rows out of WeChat's own backing store: `#show`, the
  * triple-tap gesture and a scheduled SHOW could not bring the 通讯录 rows back, and neither could
@@ -212,7 +213,7 @@ private fun stringArrayArg(arg: Any?): List<String> =
  * 企业微信 (`@openim`) out of the total.
  *
  * Accepted limitation: `username not like '%@%'` is hardcoded here, but `e2.b` forks on the
- * `usernameFlag` experiment (`com.tencent.mm.contact.d.f93632g.a()`, `e01/e2.java:434` on 8.0.76) and
+ * `usernameFlag` experiment (`com.tencent.mm.contact.d.f93632g.a()`, `e01/e2.java` on 8.0.76) and
  * emits `and ( usernameFlag in ( 0 ) )` instead when it is on. The two are semantically the same
  * classification — `usernameFlag` is the denormalised form of "is this a plain wxid" — so the mirror
  * stays correct in practice. If that column ever lags behind `username` for some row, WeChat's total
@@ -228,7 +229,7 @@ private fun stringArrayArg(arg: Any?): List<String> =
  * The `or username = 'weixin'` disjunct is reproduced too, parenthesised: it re-admits 微信团队
  * unconditionally, whatever its flags, so a hidden `weixin` really is in WeChat's total.
  *
- * The statement runs on WeKit's own database handle rather than WeChat's storage wrapper, so it
+ * The statement runs on the module's own database handle rather than WeChat's storage wrapper, so it
  * cannot re-enter the wrapper hook. Its formatting deliberately differs from WeChat's
  * (`type & 1 != 0` vs `type & 1 !=0`, and the hidden-set predicate comes first) so it can never be
  * mistaken for the query the `group-count` rule matches either.
@@ -327,7 +328,7 @@ private fun filterHiddenUsernames(members: List<*>): ArrayList<Any?>? {
 
 /**
  * 收藏 rows carry their sender in `FavItemInfo.field_fromUser`, but the plugin has largely migrated
- * to the WCDB ORM builder (`r82.e` / `br5.f`, see `fav/ui/adapter/c.java:349-360`), which produces
+ * to the WCDB ORM builder (`r82.e` / `br5.f`, see `fav/ui/adapter/c.java`), which produces
  * no raw SQL for the query rewriter to intercept. Only the legacy path still emits a statement.
  *
  * `FavoriteAdapter` funnels *both* paths — the ORM branch, the legacy branch, the search branch and
@@ -416,10 +417,11 @@ private const val LIKE_ENTRY_WX_USERNAME = 5
  * is requested, since the server-side cursor is untouched. Not worth faking a row count for.
  */
 private fun HideContacts.installFinderLikeHooks() {
-    if (methodFinderLikeDrawerRefresh.isPlaceholder) {
+    val refresh = finderLikeDrawerRefresh
+    if (refresh.isPlaceholder) {
         WeLogger.w(TAG, "Finder like-drawer refresh callback wasn't resolved; 视频号点赞列表 stays unfiltered")
     } else {
-        methodFinderLikeDrawerRefresh.hookBefore {
+        refresh.hookBefore {
             if (isTemporarilyShown || hiddenContacts.isEmpty()) return@hookBefore
 
             val data = args[0] ?: return@hookBefore
@@ -430,7 +432,8 @@ private fun HideContacts.installFinderLikeHooks() {
             @Suppress("UNCHECKED_CAST")
             val likes = listField.get(data) as? MutableList<Any?> ?: return@hookBefore
             val removed = likes.removeAll { it != null && isHiddenLikeEntry(it) }
-            if (removed) WeLogger.d(TAG, "filtered hidden contacts out of the finder like list")
+            // I 级：这个列表没有本地数据，日志是唯一能在真机上确认「过滤到底跑没跑」的地方。
+            if (removed) WeLogger.i(TAG, "视频号点赞列表已滤掉隐藏联系人，剩余 ${likes.size} 条")
         }
     }
 
@@ -446,23 +449,53 @@ private fun HideContacts.installFinderLikeHooks() {
         val filtered = likes.filterNot { it != null && isHiddenLikeEntry(it) }
         if (filtered.size == likes.size) return@hookBefore
 
-        WeLogger.d(TAG, "filtered ${likes.size - filtered.size} hidden like(s) from the finder like list")
+        WeLogger.i(TAG, "视频号点赞列表（加载更多）已滤掉 ${likes.size - filtered.size} 条")
         args[0] = ArrayList(filtered)
     }
 }
 
 private fun HideContacts.isHiddenLikeEntry(entry: Any): Boolean {
-    val wxId = protoGetString(entry, LIKE_ENTRY_WX_USERNAME) ?: return false
+    val wxId = protoFindWxUsername(entry) ?: return false
     return isHiddenNow(wxId)
 }
 
+/** 扫描字段号的上限：点赞条目的字段表约 12 项，留一点余量。 */
+private const val MAX_LIKE_ENTRY_FIELD_SCAN = 16
+
 /**
- * Reads a string field out of a `com.tencent.mm.protobuf.e` subclass by its *position* in the
- * generated field table. The concrete protobuf classes are obfuscated and renamed every version
- * (`a65.je1` -> `mx4.v91`), but `getString(int)` is declared on the unobfuscated base class, so it
- * is resolved by walking up the hierarchy — mirroring `WeMomentsApi.xs4GetString`.
+ * 取点赞条目里的 wxid。
+ *
+ * 先按历史字段号 [LIKE_ENTRY_WX_USERNAME]（5）取，命中就返回 —— 8.0.79 及更早的行为完全不变。
+ * 取不到再按**形态**扫 0..[MAX_LIKE_ENTRY_FIELD_SCAN]：微信调整 proto 字段号时，wxid 会落到
+ * 别的号上，写死一个索引就会静默失效（过滤看不出任何反应，也不报错）。
+ *
+ * 只认 `wxid_…` 与 `…@chatroom` 两种形态，所以昵称、头像地址、`v2_…` 的 Finder 身份都不会误判。
  */
-private fun protoGetString(proto: Any, fieldIndex: Int): String? = runCatching {
+private fun protoFindWxUsername(entry: Any): String? {
+    val getter = protoStringGetter(entry) ?: return null
+
+    (runCatching { getter.invoke(entry, LIKE_ENTRY_WX_USERNAME) as? String }.getOrNull())
+        ?.takeIf { looksLikeWxId(it) }
+        ?.let { return it }
+
+    for (index in 0..MAX_LIKE_ENTRY_FIELD_SCAN) {
+        if (index == LIKE_ENTRY_WX_USERNAME) continue
+        val value = runCatching { getter.invoke(entry, index) as? String }.getOrNull() ?: continue
+        if (looksLikeWxId(value)) return value
+    }
+    return null
+}
+
+private fun looksLikeWxId(value: String): Boolean =
+    value.startsWith("wxid_") || value.endsWith("@chatroom")
+
+/**
+ * 找出 `com.tencent.mm.protobuf.e` 子类的 `getString(int)`。
+ *
+ * 具体 protobuf 类每个版本都会被改名（`a65.je1` -> `mx4.v91` -> `le5.bh1`），但 `getString(int)`
+ * 声明在未混淆的基类上，所以沿继承链往上找即可 —— 与 `WeMomentsApi.xs4GetString` 同一套做法。
+ */
+private fun protoStringGetter(proto: Any): Method? = runCatching {
     var cls: Class<*>? = proto.javaClass
     while (cls != null) {
         val getter = cls.declaredMethods.firstOrNull {
@@ -472,7 +505,7 @@ private fun protoGetString(proto: Any, fieldIndex: Int): String? = runCatching {
         }
         if (getter != null) {
             getter.isAccessible = true
-            return@runCatching getter.invoke(proto, fieldIndex) as? String
+            return@runCatching getter
         }
         cls = cls.superclass
     }

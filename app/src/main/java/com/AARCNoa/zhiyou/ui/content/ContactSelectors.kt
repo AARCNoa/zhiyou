@@ -57,22 +57,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Chat
-import com.composables.icons.materialsymbols.outlined.Compare_arrows
-import com.composables.icons.materialsymbols.outlined.Deselect
-import com.composables.icons.materialsymbols.outlined.Expand_less
-import com.composables.icons.materialsymbols.outlined.Expand_more
-import com.composables.icons.materialsymbols.outlined.Folder
-import com.composables.icons.materialsymbols.outlined.Groups
-import com.composables.icons.materialsymbols.outlined.Label
-import com.composables.icons.materialsymbols.outlined.Person
-import com.composables.icons.materialsymbols.outlined.Schedule
-import com.composables.icons.materialsymbols.outlined.Search
-import com.composables.icons.materialsymbols.outlined.Select_all
-import com.composables.icons.materialsymbols.outlined.Sort_by_alpha
-import com.composables.icons.materialsymbols.outlined.Swap_vert
-import com.composables.icons.materialsymbols.outlined.Tag
 
 
 import com.AARCNoa.zhiyou.features.api.core.WeContactLabelApi
@@ -84,6 +68,7 @@ import com.AARCNoa.zhiyou.features.api.core.models.WeOfficialAccount
 import com.AARCNoa.zhiyou.features.items.chat.ConversationAggregation
 import com.AARCNoa.zhiyou.features.items.chat.ConversationGrouping
 import com.AARCNoa.zhiyou.preferences.WePrefs
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
 import kotlinx.coroutines.Dispatchers
@@ -107,9 +92,9 @@ enum class FilterType(val displayNameRes: String) {
 }
 
 private enum class ContactFilterMode(val icon: ImageVector, val nameRes: String) {
-    LABELS(MaterialSymbols.Outlined.Label, "标签"),
-    AGGREGATION(MaterialSymbols.Outlined.Folder, "归拢"),
-    GROUPING(MaterialSymbols.Outlined.Groups, "分组"),
+    LABELS(OutlinedIcons.Label, "标签"),
+    AGGREGATION(OutlinedIcons.Folder, "归拢"),
+    GROUPING(OutlinedIcons.Groups, "分组"),
 }
 
 private var persistedContactFilterMode by WePrefs.prefOption(
@@ -124,8 +109,8 @@ private data class ContactFilterOption(
 )
 
 enum class SortMode(val icon: ImageVector) {
-    ALPHABETICAL(MaterialSymbols.Outlined.Sort_by_alpha),
-    LAST_MESSAGE_TIME(MaterialSymbols.Outlined.Schedule);
+    ALPHABETICAL(OutlinedIcons.Sort_by_alpha),
+    LAST_MESSAGE_TIME(OutlinedIcons.Schedule);
 
     fun displayNameRes(reversed: Boolean): String = when (this) {
         ALPHABETICAL -> if (reversed) "Z–A"
@@ -510,7 +495,7 @@ fun BaseContactSelector(
                         placeholder = { Text("搜索昵称或微信号") },
                         leadingIcon = {
                             Icon(
-                                MaterialSymbols.Outlined.Search,
+                                OutlinedIcons.Search,
                                 contentDescription = "搜索联系人",
                             )
                         },
@@ -519,9 +504,9 @@ fun BaseContactSelector(
                     IconButton(onClick = { filtersExpanded = !filtersExpanded }) {
                         Icon(
                             imageVector = if (filtersExpanded) {
-                                MaterialSymbols.Outlined.Expand_less
+                                OutlinedIcons.Expand_less
                             } else {
-                                MaterialSymbols.Outlined.Expand_more
+                                OutlinedIcons.Expand_more
                             },
                             contentDescription = if (filtersExpanded) "折叠筛选" else "展开筛选",
                         )
@@ -558,11 +543,11 @@ fun BaseContactSelector(
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = when (type) {
-                                                    FilterType.ALL -> MaterialSymbols.Outlined.Search
-                                                    FilterType.FRIENDS -> MaterialSymbols.Outlined.Person
-                                                    FilterType.GROUPS -> MaterialSymbols.Outlined.Groups
-                                                    FilterType.OFFICIAL_ACCOUNTS -> MaterialSymbols.Outlined.Chat
-                                                    FilterType.OTHERS -> MaterialSymbols.Outlined.Tag
+                                                    FilterType.ALL -> OutlinedIcons.Search
+                                                    FilterType.FRIENDS -> OutlinedIcons.Person
+                                                    FilterType.GROUPS -> OutlinedIcons.Groups
+                                                    FilterType.OFFICIAL_ACCOUNTS -> OutlinedIcons.Chat
+                                                    FilterType.OTHERS -> OutlinedIcons.Tag
                                                 },
                                                 contentDescription = displayName,
                                                 modifier = Modifier.size(16.dp)
@@ -715,7 +700,7 @@ fun BaseContactSelector(
                                 onClick = { sortReversed = !sortReversed },
                                 label = {
                                     Icon(
-                                        imageVector = MaterialSymbols.Outlined.Swap_vert,
+                                        imageVector = OutlinedIcons.Swap_vert,
                                         contentDescription = "切换排序方向",
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -739,7 +724,7 @@ fun BaseContactSelector(
                                         label = { Text("全选") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Select_all,
+                                                imageVector = OutlinedIcons.Select_all,
                                                 contentDescription = "全选",
                                                 modifier = Modifier.size(16.dp)
                                             )
@@ -753,7 +738,7 @@ fun BaseContactSelector(
                                         label = { Text("全不选") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Deselect,
+                                                imageVector = OutlinedIcons.Deselect,
                                                 contentDescription = "全不选",
                                                 modifier = Modifier.size(16.dp)
                                             )
@@ -767,7 +752,7 @@ fun BaseContactSelector(
                                         label = { Text("反选") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Compare_arrows,
+                                                imageVector = OutlinedIcons.Compare_arrows,
                                                 contentDescription = "反选",
                                                 modifier = Modifier.size(16.dp)
                                             )

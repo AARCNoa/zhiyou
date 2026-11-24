@@ -14,6 +14,7 @@ import com.AARCNoa.zhiyou.features.api.ui.WeHomeScreenPopupMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.preferences.WePrefs
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.runOnUiThread
@@ -28,8 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Package_2
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 
@@ -67,7 +66,6 @@ object MiniProgramIcon : Drawable() {
     @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
 
-    private fun Int.dpToPx(): Int = (this * android.content.res.Resources.getSystem().displayMetrics.density).toInt()
 }
 
 @Feature(name = "禁止主页下滑进入最近页面", categories = ["小程序"], description = "禁止主页下滑进入最近页面，支持通过加号菜单和标题栏图标唤起小程序面板")
@@ -201,7 +199,7 @@ object DisableMainPagePullDown : SwitchFeature(), WeHomeScreenPopupMenuApi.IMenu
                 setContent {
                     InjectedUiTheme {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Package_2,
+                            imageVector = OutlinedIcons.Package_2,
                             contentDescription = "最近小程序",
                             modifier = Modifier
                                 .size(28.dp)
@@ -320,5 +318,4 @@ object DisableMainPagePullDown : SwitchFeature(), WeHomeScreenPopupMenuApi.IMenu
         WeLogger.i(TAG, "title bar icon visibility updated: $visible")
     }
 
-    private fun Int.dpToPx(): Int = (this * android.content.res.Resources.getSystem().displayMetrics.density).toInt()
 }

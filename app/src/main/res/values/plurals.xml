@@ -369,7 +369,7 @@
         <item quantity="other">%1$d 字节</item>
     </plurals>
 <plurals name="noncompose_message_menu_selected_title">
-        <item quantity="one">WeKit（%1$d 条消息）</item>
-        <item quantity="other">WeKit（%1$d 条消息）</item>
+        <item quantity="one">知友（%1$d 条消息）</item>
+        <item quantity="other">知友（%1$d 条消息）</item>
     </plurals>
 </resources>

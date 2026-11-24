@@ -13,7 +13,7 @@ import com.AARCNoa.zhiyou.ui.utils.theme.lightScheme
 import com.AARCNoa.zhiyou.utils.HostInfo
 
 /**
- * Theme for WeKit UI injected INTO WeChat.
+ * Theme for the module's UI injected INTO WeChat (the module's own settings page uses `ModuleTheme`).
  *
  * The seed is [SeedResolver.injectedSeed]: WeChat green by default, or the user's custom color when
  * they opted it into WeChat ([ThemeSettings.applyToWechat]). This is read once when the composition
@@ -38,34 +38,13 @@ fun InjectedUiTheme(
             SeedResolver.materialScheme(seed, dark)
         }
 
-        // TODO: currently we don't have any Miuix components injected into WeChat
-        // ---- miuix ----
-//        val controller = if (!applyCustom) {
-//            ThemeController(
-//                colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light,
-//                isDark = dark,
-//            )
-//        } else {
-//            ThemeController(
-//                colorSchemeMode = if (dark) ColorSchemeMode.MonetDark else ColorSchemeMode.MonetLight,
-//                keyColor = Color(seed),
-//                colorSpec = ThemeSettings.effectiveColorSpec.miuix,
-//                paletteStyle = ThemeSettings.paletteStyle.miuix,
-//                isDark = dark,
-//            )
-//        }
-
-//        MiuixTheme(controller = controller) {
+        // 注入到微信里的 UI 只套 Material 3：miuix 主题只在模块自己的设置页提供
+        // （见 ui/utils/theme/ModuleTheme.kt），注入侧没有 miuix 组件，不需要重复包一层。
         MaterialExpressiveTheme(
             colorScheme = materialScheme,
             motionScheme = MotionScheme.expressive(),
         ) {
-//            CompositionLocalProvider(
-//                LocalContentColor provides MiuixTheme.colorScheme.onBackground,
-//            ) {
             content()
-//            }
         }
-//        }
     }
 }

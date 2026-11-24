@@ -4,20 +4,10 @@ import android.app.Activity
 import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlinedfilled.Camera
-import com.composables.icons.materialsymbols.outlinedfilled.Cancel
-import com.composables.icons.materialsymbols.outlinedfilled.Extension
-import com.composables.icons.materialsymbols.outlinedfilled.Favorite
-import com.composables.icons.materialsymbols.outlinedfilled.Mark_chat_read
-import com.composables.icons.materialsymbols.outlinedfilled.Movie
-import com.composables.icons.materialsymbols.outlinedfilled.Qr_code_scanner
-import com.composables.icons.materialsymbols.outlinedfilled.Settings
-import com.composables.icons.materialsymbols.outlinedfilled.Update
-import com.composables.icons.materialsymbols.outlinedfilled.Wallet
 
 import com.AARCNoa.zhiyou.features.items.beautify.BeautifyText
 import com.AARCNoa.zhiyou.features.items.beautify.WeChatQuickActions
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.killHost
 import com.AARCNoa.zhiyou.utils.restartHost
@@ -33,61 +23,61 @@ internal fun homeSidePanelActionSpec(kind: HomeSidePanelActionKind): HomeSidePan
     HomeSidePanelActionKind.SCAN -> HomeSidePanelActionSpec(
         kind,
         "扫一扫",
-        MaterialSymbols.OutlinedFilled.Qr_code_scanner,
+        FilledIcons.Qr_code_scanner,
     )
 
     HomeSidePanelActionKind.MOMENTS -> HomeSidePanelActionSpec(
         kind,
         "朋友圈",
-        MaterialSymbols.OutlinedFilled.Camera,
+        FilledIcons.Camera,
     )
 
     HomeSidePanelActionKind.WALLET -> HomeSidePanelActionSpec(
         kind,
         "钱包",
-        MaterialSymbols.OutlinedFilled.Wallet,
+        FilledIcons.Wallet,
     )
 
     HomeSidePanelActionKind.CHANNELS -> HomeSidePanelActionSpec(
         kind,
         "视频号",
-        MaterialSymbols.OutlinedFilled.Movie,
+        FilledIcons.Movie,
     )
 
     HomeSidePanelActionKind.WECHAT_SETTINGS -> HomeSidePanelActionSpec(
         kind,
         "设置",
-        MaterialSymbols.OutlinedFilled.Settings,
+        FilledIcons.Settings,
     )
 
     HomeSidePanelActionKind.FAVORITES -> HomeSidePanelActionSpec(
         kind,
         "收藏夹",
-        MaterialSymbols.OutlinedFilled.Favorite,
+        FilledIcons.Favorite,
     )
 
     HomeSidePanelActionKind.WEKIT_SETTINGS -> HomeSidePanelActionSpec(
         kind,
         "模块设置",
-        MaterialSymbols.OutlinedFilled.Extension,
+        FilledIcons.Extension,
     )
 
     HomeSidePanelActionKind.RESTART_WECHAT -> HomeSidePanelActionSpec(
         kind,
         "重启微信",
-        MaterialSymbols.OutlinedFilled.Update,
+        FilledIcons.Update,
     )
 
     HomeSidePanelActionKind.FORCE_STOP_WECHAT -> HomeSidePanelActionSpec(
         kind,
         "强行停止",
-        MaterialSymbols.OutlinedFilled.Cancel,
+        FilledIcons.Cancel,
     )
 
     HomeSidePanelActionKind.MARK_ALL_READ -> HomeSidePanelActionSpec(
         kind,
         "清空未读",
-        MaterialSymbols.OutlinedFilled.Mark_chat_read,
+        FilledIcons.Mark_chat_read,
     )
 }
 

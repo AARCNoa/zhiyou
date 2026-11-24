@@ -1,23 +1,23 @@
 {
   "versionCode": 2,
   "versionName": "1.1",
-  "publishedAt": "2026-11-24T11:35:00Z",
-  "changelog": "test",
+  "publishedAt": "2026-11-24T11:42:00Z",
+  "changelog": "总览：新增今日总结，汇总当天约定、群摘要与工作群任务；工作群可生成进度汇报。\n朋友圈：新增「帮我评论」，读动态文字与图片生成三条评论，点一条复制。\n应用内更新：设置里可检查新版本，自动选择可用下载线路。\n适配微信 8.0.80，全部功能锚点已就绪。\n界面：分类图标、侧边栏、日志页与 AI 页整体调整。",
   "assets": [
     {
       "flavor": "legacy",
       "abi": "arm64-v8a",
       "urls": [
-        "https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-arm64-v8a-release.apk",
-        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-arm64-v8a-release.apk"
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-arm64-v8a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-arm64-v8a-release.apk"
       ]
     },
     {
       "flavor": "legacy",
       "abi": "armeabi-v7a",
       "urls": [
-        "https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-armeabi-v7a-release.apk",
-        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-armeabi-v7a-release.apk"
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-armeabi-v7a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-armeabi-v7a-release.apk"
       ]
     }
   ]

@@ -68,27 +68,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Arrow_back
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Cloud
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Drag_handle
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Folder
-import com.composables.icons.materialsymbols.outlined.History
-import com.composables.icons.materialsymbols.outlined.Image_search
-import com.composables.icons.materialsymbols.outlined.Manage_search
-import com.composables.icons.materialsymbols.outlined.Person
-import com.composables.icons.materialsymbols.outlined.Refresh
-import com.composables.icons.materialsymbols.outlined.Save
-import com.composables.icons.materialsymbols.outlined.Select_all
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Sort
-import com.composables.icons.materialsymbols.outlined.Travel_explore
-import com.composables.icons.materialsymbols.outlined.Upload
-import com.composables.icons.materialsymbols.outlined.Upload_file
 import com.AARCNoa.zhiyou.features.items.chat.panel.LocalSortMode
 import com.AARCNoa.zhiyou.features.items.chat.panel.PANEL_BULK_DOWNLOAD_CONCURRENCY
 import com.AARCNoa.zhiyou.features.items.chat.panel.PanelSettings
@@ -105,6 +84,7 @@ import com.AARCNoa.zhiyou.features.items.chat.panel.sticker.TelegramStickerImpor
 import com.AARCNoa.zhiyou.features.items.chat.panel.sticker.TelegramStickerImportResult
 import com.AARCNoa.zhiyou.features.items.chat.panel.sticker.TelegramStickerPackRepository
 import com.AARCNoa.zhiyou.ui.content.GlobalImageLoader
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.TelegramIcon
 import com.AARCNoa.zhiyou.utils.android.showToastSuspend
 import kotlinx.coroutines.CancellationException
@@ -517,7 +497,7 @@ private fun StickerPanelContent(
             title = "保存到表情包",
             createLabel = "新建表情包",
             itemCountLabel = { count -> "$count 个表情" },
-            packIcon = MaterialSymbols.Outlined.Folder,
+            packIcon = OutlinedIcons.Folder,
             packs = editablePacks.map { PanelPackChoice(it.id, it.title, it.itemCount) },
             onCreatePack = actions.createPack,
             onSelect = { packId -> startOnlineSave(packId, items, "正在保存表情") },
@@ -536,12 +516,12 @@ private fun StickerPanelContent(
     }
 
     val rail = buildList {
-        add(PanelRailItem(StickerDestination.RECENT, MaterialSymbols.Outlined.History, "最近使用"))
-        add(PanelRailItem(StickerDestination.PACKS, MaterialSymbols.Outlined.Folder, "本地表情包"))
-        add(PanelRailItem(StickerDestination.SEARCH, MaterialSymbols.Outlined.Manage_search, "本地搜索"))
-        add(PanelRailItem(StickerDestination.ONLINE, MaterialSymbols.Outlined.Cloud, "在线表情包"))
-        add(PanelRailItem(StickerDestination.ONLINE_SEARCH, MaterialSymbols.Outlined.Travel_explore, "在线搜索"))
-        add(PanelRailItem(StickerDestination.SETTINGS, MaterialSymbols.Outlined.Settings, "设置"))
+        add(PanelRailItem(StickerDestination.RECENT, OutlinedIcons.History, "最近使用"))
+        add(PanelRailItem(StickerDestination.PACKS, OutlinedIcons.Folder, "本地表情包"))
+        add(PanelRailItem(StickerDestination.SEARCH, OutlinedIcons.Manage_search, "本地搜索"))
+        add(PanelRailItem(StickerDestination.ONLINE, OutlinedIcons.Cloud, "在线表情包"))
+        add(PanelRailItem(StickerDestination.ONLINE_SEARCH, OutlinedIcons.Travel_explore, "在线搜索"))
+        add(PanelRailItem(StickerDestination.SETTINGS, OutlinedIcons.Settings, "设置"))
     }
 
     val title = when (destination) {
@@ -632,7 +612,7 @@ private fun StickerPanelContent(
             items = multiSelectItems,
             selectedKeys = selectedStickerKeys,
             key = ::stickerSelectionKey,
-            terminalIcon = if (deletingLocalItems) MaterialSymbols.Outlined.Delete else MaterialSymbols.Outlined.Save,
+            terminalIcon = if (deletingLocalItems) OutlinedIcons.Delete else OutlinedIcons.Save,
             terminalLabel = if (deletingLocalItems) "删除" else "保存",
             onClose = {
                 multiSelectMode = false
@@ -647,11 +627,11 @@ private fun StickerPanelContent(
     } else when (destination) {
         StickerDestination.PACKS -> if (localCatalogVisible) {
             buildList {
-                add(PanelAction(MaterialSymbols.Outlined.Add, "新建表情包") { prompt = StickerPrompt.CreatePack })
-                add(PanelAction(MaterialSymbols.Outlined.Upload_file, "导入") {
+                add(PanelAction(OutlinedIcons.Add, "新建表情包") { prompt = StickerPrompt.CreatePack })
+                add(PanelAction(OutlinedIcons.Upload_file, "导入") {
                     prompt = StickerPrompt.Import(null)
                 })
-                add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::refreshLocal))
+                add(PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::refreshLocal))
                 add(
                     panelLocalSortAction(
                         mode = localPackSortMode,
@@ -663,29 +643,29 @@ private fun StickerPanelContent(
             }
         } else buildList {
             if (localPackLayout != StickerPackLayout.TABS) {
-                add(PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回") { localPackDetailId = null })
+                add(PanelAction(OutlinedIcons.Arrow_back, "返回") { localPackDetailId = null })
             } else {
-                add(PanelAction(MaterialSymbols.Outlined.Add, "新建表情包") { prompt = StickerPrompt.CreatePack })
+                add(PanelAction(OutlinedIcons.Add, "新建表情包") { prompt = StickerPrompt.CreatePack })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Edit, "重命名", localActionPack != null) {
+            add(PanelAction(OutlinedIcons.Edit, "重命名", localActionPack != null) {
                 localActionPack?.let { prompt = StickerPrompt.RenamePack(it) }
             })
-            add(PanelAction(MaterialSymbols.Outlined.Delete, "删除", localActionPack != null) {
+            add(PanelAction(OutlinedIcons.Delete, "删除", localActionPack != null) {
                 localActionPack?.let { prompt = StickerPrompt.DeletePack(it) }
             })
-            add(PanelAction(MaterialSymbols.Outlined.Upload_file, "导入") {
+            add(PanelAction(OutlinedIcons.Upload_file, "导入") {
                 prompt = StickerPrompt.Import(localActionPack)
             })
-            add(PanelAction(MaterialSymbols.Outlined.Upload, "上传", localActionPack != null) {
+            add(PanelAction(OutlinedIcons.Upload, "上传", localActionPack != null) {
                 localActionPack?.let { prompt = StickerPrompt.UploadPack(it) }
             })
             if (localPackLayout != StickerPackLayout.TABS) {
-                add(PanelAction(MaterialSymbols.Outlined.Select_all, "多选", !localActionPack?.items.isNullOrEmpty()) {
+                add(PanelAction(OutlinedIcons.Select_all, "多选", !localActionPack?.items.isNullOrEmpty()) {
                     multiSelectMode = true
                     selectedStickerKeys = emptySet()
                 })
             }
-            add(PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::refreshLocal))
+            add(PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::refreshLocal))
             add(
                 panelLocalSortAction(
                     mode = localItemSortMode,
@@ -698,14 +678,14 @@ private fun StickerPanelContent(
 
         StickerDestination.ONLINE -> if (selectedOnlinePack == null && !showingMyUploads) {
             listOf(
-                PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::loadOnlinePacks),
-                PanelAction(MaterialSymbols.Outlined.Person, "我的上传") {
+                PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::loadOnlinePacks),
+                PanelAction(OutlinedIcons.Person, "我的上传") {
                     showingMyUploads = true
                     selectedOnlinePackId = null
                     loadMyUploads()
                 },
                 PanelAction(
-                    icon = MaterialSymbols.Outlined.Sort,
+                    icon = OutlinedIcons.Sort,
                     label = when (onlineSortMode) {
                         1 -> "上传时间"
                         2 -> "下载次数"
@@ -719,27 +699,27 @@ private fun StickerPanelContent(
             )
         } else if (selectedOnlinePack == null) {
             listOf(
-                PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回") {
+                PanelAction(OutlinedIcons.Arrow_back, "返回") {
                     showingMyUploads = false
                     myUploadsRequest++
                 },
-                PanelAction(MaterialSymbols.Outlined.Refresh, "刷新", onClick = ::loadMyUploads),
+                PanelAction(OutlinedIcons.Refresh, "刷新", onClick = ::loadMyUploads),
             )
         } else {
             listOf(
-                PanelAction(MaterialSymbols.Outlined.Arrow_back, "返回") {
+                PanelAction(OutlinedIcons.Arrow_back, "返回") {
                     selectedOnlinePackId = null
                     onlineItemsRequest++
                     onlineItemsState = PanelUiState.Empty("选择一个在线表情包")
                 },
-                PanelAction(MaterialSymbols.Outlined.Refresh, "刷新") {
+                PanelAction(OutlinedIcons.Refresh, "刷新") {
                     loadOnlinePack(selectedOnlinePack)
                 },
-                PanelAction(MaterialSymbols.Outlined.Select_all, "多选", onlineItems.isNotEmpty()) {
+                PanelAction(OutlinedIcons.Select_all, "多选", onlineItems.isNotEmpty()) {
                     multiSelectMode = true
                     selectedStickerKeys = emptySet()
                 },
-                PanelAction(MaterialSymbols.Outlined.Save, "保存", onlineItems.isNotEmpty()) {
+                PanelAction(OutlinedIcons.Save, "保存", onlineItems.isNotEmpty()) {
                     saveWholeOnlinePack(selectedOnlinePack, onlineItems)
                 },
             )
@@ -1468,8 +1448,8 @@ private fun SearchStickerContent(
             extraTrailingIcon = if (onImageSearch == null) null else ({
                 IconButton(onClick = onImageSearch) {
                     Icon(
-                        if (imageSearchActive) MaterialSymbols.Outlined.Close
-                        else MaterialSymbols.Outlined.Image_search,
+                        if (imageSearchActive) OutlinedIcons.Close
+                        else OutlinedIcons.Image_search,
                         if (imageSearchActive) "清除以图搜图结果" else "选择图片搜索相似表情",
                     )
                 }
@@ -1593,7 +1573,7 @@ private fun StickerPackReorderContent(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Drag_handle,
+                        OutlinedIcons.Drag_handle,
                         contentDescription = "拖动 ${pack.title}",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1649,7 +1629,7 @@ private fun StickerItemReorderContent(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Drag_handle,
+                        OutlinedIcons.Drag_handle,
                         contentDescription = "拖动 ${sticker.title}",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1813,7 +1793,7 @@ private fun StickerAsyncImage(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Close,
+                        OutlinedIcons.Close,
                         contentDescription = "缩略图加载失败",
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(30.dp),
@@ -1923,7 +1903,7 @@ private fun StickerImportPrompt(
                         mode = StickerImportMode.MULTIPLE_FILES,
                         title = "选择多个图片文件",
                         description = "从系统文件选择器一次选择一个或多个文件",
-                        icon = MaterialSymbols.Outlined.Upload_file,
+                        icon = OutlinedIcons.Upload_file,
                     ),
                 )
                 add(
@@ -1931,7 +1911,7 @@ private fun StickerImportPrompt(
                         mode = StickerImportMode.DIRECTORY,
                         title = "导入整个目录",
                         description = "递归导入所选目录内支持的图片文件",
-                        icon = MaterialSymbols.Outlined.Folder,
+                        icon = OutlinedIcons.Folder,
                     ),
                 )
             }

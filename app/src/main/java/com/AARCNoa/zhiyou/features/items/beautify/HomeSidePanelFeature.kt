@@ -14,7 +14,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -61,7 +60,10 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
+import com.AARCNoa.zhiyou.ui.utils.dpToPx
+import com.AARCNoa.zhiyou.ui.utils.statusBarHeight
 import de.robv.android.xposed.XC_MethodHook
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.hookBeforeDirectly
@@ -114,19 +116,6 @@ import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 import com.AARCNoa.zhiyou.activity.settings.ai.GroupDigestPanel
 import com.AARCNoa.zhiyou.features.items.ai.GroupDigestEntry
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlinedfilled.Add
-import com.composables.icons.materialsymbols.outlinedfilled.Bookmark
-import com.composables.icons.materialsymbols.outlinedfilled.Camera
-import com.composables.icons.materialsymbols.outlinedfilled.Check_circle
-import com.composables.icons.materialsymbols.outlinedfilled.Close
-import com.composables.icons.materialsymbols.outlinedfilled.Favorite
-import com.composables.icons.materialsymbols.outlinedfilled.Movie
-import com.composables.icons.materialsymbols.outlinedfilled.Person
-import com.composables.icons.materialsymbols.outlinedfilled.Qr_code_scanner
-import com.composables.icons.materialsymbols.outlinedfilled.Settings
-import com.composables.icons.materialsymbols.outlinedfilled.Update
-import com.composables.icons.materialsymbols.outlinedfilled.Wallet
 
 /**
  * 微信主页侧滑侧边栏功能（XML+原生 View 实现）
@@ -148,7 +137,7 @@ import com.composables.icons.materialsymbols.outlinedfilled.Wallet
 @Feature(
     name = "微信主页侧边栏",
     categories = ["界面美化"],
-    description = "在微信主页添加左侧侧滑边栏，内置面板与 WeKit 负一屏二选一"
+    description = "在微信主页添加左侧侧滑边栏，内置面板与负一屏二选一"
 )
 object HomeSidePanelFeature : ClickableFeature() {
 
@@ -160,7 +149,7 @@ object HomeSidePanelFeature : ClickableFeature() {
     @Volatile private var panelRootView: View? = null
     @Volatile private var attachedActivity: Activity? = null
 
-    // ==================== 全屏右滑跟手手势状态（WeKit 式：主界面任意位置右滑）====================
+    // ==================== 全屏右滑跟手手势状态（主界面任意位置右滑）====================
     @Volatile private var gestureHookInstalled = false
     private const val GESTURE_IDLE = 0
     private const val GESTURE_ARMED = 1
@@ -298,7 +287,7 @@ object HomeSidePanelFeature : ClickableFeature() {
     private var triggerMode by WePrefs.prefOption("${PREFS_PREFIX}trigger_mode", 7)
     // 左边缘触摸条宽度（dp，仅开启左边缘右滑时生效；10~80，默认 28）
     private var edgeZoneWidthDp by WePrefs.prefOption("${PREFS_PREFIX}edge_zone_width_dp", 28)
-    // 侧边栏实现方式：1=方式一（本模块原版），2=方式二（WeKit 侧边栏）；默认 1
+    // 侧边栏实现方式：1=内置面板，2=负一屏面板；默认 1
     private var sidePanelMode by WePrefs.prefOption("hsp_side_mode", 1)
 
     /** 旧版本编码（0=全屏,1=按钮,2=全屏+按钮）迁移到新位掩码（首次读取时写回一次）。 */
@@ -504,7 +493,7 @@ object HomeSidePanelFeature : ClickableFeature() {
             WeLogger.w(TAG, "侧边栏功能编译开关已关闭，跳过启用"); return
         }
         if (sidePanelMode == 2) {
-            WeLogger.i(TAG, "侧边栏实现方式为方式二（WeKit 版），启用 WeKit 负一屏面板")
+            WeLogger.i(TAG, "侧边栏实现方式为方式二：启用负一屏面板")
             HomeSidePanel.installPanel()
             return
         }
@@ -812,7 +801,7 @@ private fun isHomeTabClass(className: String): Boolean {
         val decorView = act.window?.decorView as? ViewGroup ?: return
         try {
             val d = act.resources.displayMetrics.density
-            val statusBarH = getStatusBarHeight(act)
+            val statusBarH = act.statusBarHeight()
             val extraOffset = detectWeChatOfficialEntry(act)
             val triggerSizePx = (40 * d).toInt()
             val trigger = FrameLayout(act).apply {
@@ -956,7 +945,7 @@ private fun isHomeTabClass(className: String): Boolean {
         hideTrigger()
     }
 
-    // ==================== 全屏右滑跟手（WeKit 式：主界面任意位置右滑，面板跟随手指呼出）====================
+    // ==================== 全屏右滑跟手（主界面任意位置右滑，面板跟随手指呼出）====================
     /**
      * 挂载全屏右滑跟手手势：Hook 首页 Activity 的 dispatchTouchEvent（getMethod 命中
      * LauncherUI 自身或父类最近的重写）。按下不消费（微信正常处理），判定为水平右滑后向
@@ -1134,7 +1123,7 @@ private fun isHomeTabClass(className: String): Boolean {
     /** 更新跟手位置：面板随手指平移，遮罩随开合比例渐变。 */
     private fun updateDragPanel(act: Activity, posPx: Float) {
         val panel = panelRootView as? FrameLayout ?: return
-        val widthPx = dp(300, act).toFloat()
+        val widthPx = 300.dpToPx(act).toFloat()
         val clamped = posPx.coerceIn(0f, widthPx)
         val progress = clamped / widthPx
         panel.getChildAt(1)?.translationX = clamped - widthPx
@@ -1144,7 +1133,7 @@ private fun isHomeTabClass(className: String): Boolean {
     /** 跟手到阈值以上：平滑展开到全开，并执行与按钮打开一致的收尾（隐藏触发按钮 + 加载面板数据）。 */
     private fun finishDrag(act: Activity, dx: Float) {
         val panel = panelRootView as? FrameLayout ?: return
-        val widthPx = dp(300, act).toFloat()
+        val widthPx = 300.dpToPx(act).toFloat()
         if (dx >= widthPx * 0.45f) {
             panel.getChildAt(1)?.animate()?.translationX(0f)?.setDuration(180)?.start()
             panel.getChildAt(0)?.animate()?.alpha(0.66f)?.setDuration(180)?.start()
@@ -1160,7 +1149,7 @@ private fun isHomeTabClass(className: String): Boolean {
         val panel = panelRootView as? FrameLayout ?: return
         val composeView = panel.getChildAt(1)
         val scrim = panel.getChildAt(0)
-        composeView?.animate()?.translationX(-dp(300, act).toFloat())?.setDuration(180)
+        composeView?.animate()?.translationX(-300.dpToPx(act).toFloat())?.setDuration(180)
             ?.withEndAction {
                 removePanelInternal()
                 reattachTriggers()
@@ -1185,7 +1174,7 @@ private fun isHomeTabClass(className: String): Boolean {
             panel.addView(scrim)
             val composeView = ComposeView(act).apply {
                 tag = "home_side_panel_compose"
-                layoutParams = FrameLayout.LayoutParams(dp(300, act), ViewGroup.LayoutParams.MATCH_PARENT).apply { gravity = Gravity.START or Gravity.TOP }
+                layoutParams = FrameLayout.LayoutParams(300.dpToPx(act), ViewGroup.LayoutParams.MATCH_PARENT).apply { gravity = Gravity.START or Gravity.TOP }
                 try { setLifecycleOwner(LifecycleOwnerProvider.lifecycleOwner) } catch (e: Throwable) { WeLogger.w(TAG, "setLifecycleOwner 失败", e) }
                 setContent {
                     InjectedUiTheme(darkTheme = dark) {
@@ -1206,16 +1195,14 @@ private fun isHomeTabClass(className: String): Boolean {
                         MaterialTheme(colorScheme = scheme) {
                             when (content) {
                                 PanelContent.SIDE_PANEL -> SidePanelContent(act)
-                                PanelContent.GROUP_DIGEST -> GroupDigestPanel(
-                                    onClose = { try { hidePanel() } catch (_: Throwable) {} },
-                                )
+                                PanelContent.GROUP_DIGEST -> GroupDigestPanel()
                             }
                         }
                     }
                 }
             }
             panel.addView(composeView)
-            composeView.translationX = -dp(300, act).toFloat()
+            composeView.translationX = -300.dpToPx(act).toFloat()
             scrim.alpha = 0f
             val panelLp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             if (panel.parent != null) (panel.parent as? ViewGroup)?.removeView(panel)
@@ -1237,7 +1224,7 @@ private fun isHomeTabClass(className: String): Boolean {
             val composeView = panel.getChildAt(1)
             val scrim = panel.getChildAt(0)
             // 开启动画：ComposeView 从左边滑入 + 遮罩渐显
-            composeView?.translationX = -dp(300, act).toFloat()
+            composeView?.translationX = -300.dpToPx(act).toFloat()
             scrim?.alpha = 0f
             composeView?.animate()?.translationX(0f)?.setDuration(350)?.start()
             scrim?.animate()?.alpha(1f)?.setDuration(300)?.start()
@@ -1274,7 +1261,7 @@ private fun isHomeTabClass(className: String): Boolean {
         val vg = panel as? ViewGroup
         val composeView = vg?.getChildAt(1)
         val scrim = vg?.getChildAt(0)
-        val widthPx = dp(300, panel.context)
+        val widthPx = 300.dpToPx(panel.context)
         composeView?.animate()?.translationX(-widthPx.toFloat())?.setDuration(250)?.withEndAction {
             removePanelInternal()
             reattachTriggers()
@@ -1381,7 +1368,7 @@ private fun isHomeTabClass(className: String): Boolean {
                                 .combinedClickable(onClick = {}, onLongClick = { try { showAvatarConfigDialog(act) } catch (e: Throwable) { WeLogger.e(TAG, "头像配置异常", e); showToast("头像配置失败：" + e.message) } }),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(MaterialSymbols.OutlinedFilled.Person, "头像", tint = cs.onPrimaryContainer)
+                            Icon(FilledIcons.Person, "头像", tint = cs.onPrimaryContainer)
                         }
                     }
                     Spacer(Modifier.width(12.dp))
@@ -1401,7 +1388,7 @@ private fun isHomeTabClass(className: String): Boolean {
                         Text(uiDate, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                     }
                     IconButton(onClick = { refreshPanelData(act) }) {
-                        Icon(MaterialSymbols.OutlinedFilled.Update, "刷新", tint = cs.onSurfaceVariant)
+                        Icon(FilledIcons.Update, "刷新", tint = cs.onSurfaceVariant)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1417,7 +1404,7 @@ private fun isHomeTabClass(className: String): Boolean {
         }
     }
 
-    // ==================== 天气卡片 — WeKit 风格（长按配置） ====================
+    // ==================== 天气卡片（长按配置） ====================
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun WeatherCard(act: Activity) {
@@ -1551,12 +1538,12 @@ private fun isHomeTabClass(className: String): Boolean {
 
     private fun buildFeatureEntries(act: Activity): List<FeatureEntry> {
         val list = mutableListOf<FeatureEntry>()
-        if (momentsEntryEnabled) list.add(FeatureEntry(MaterialSymbols.OutlinedFilled.Favorite, "朋友圈") { startActivityByName(act, "com.tencent.mm.plugin.sns.ui.improve.ImproveSnsTimelineUI") })
-        if (videoEntryEnabled) list.add(FeatureEntry(MaterialSymbols.OutlinedFilled.Movie, "视频号") { startActivityByName(act, "com.tencent.mm.plugin.finder.ui.FinderHomeAffinityUI") })
-        if (clearUnreadEnabled) list.add(FeatureEntry(MaterialSymbols.OutlinedFilled.Check_circle, "清空未读") {
+        if (momentsEntryEnabled) list.add(FeatureEntry(FilledIcons.Favorite, "朋友圈") { startActivityByName(act, "com.tencent.mm.plugin.sns.ui.improve.ImproveSnsTimelineUI") })
+        if (videoEntryEnabled) list.add(FeatureEntry(FilledIcons.Movie, "视频号") { startActivityByName(act, "com.tencent.mm.plugin.finder.ui.FinderHomeAffinityUI") })
+        if (clearUnreadEnabled) list.add(FeatureEntry(FilledIcons.Check_circle, "清空未读") {
             markAllConversationsRead(act)
         })
-        if (wcxSettingsEnabled) list.add(FeatureEntry(MaterialSymbols.OutlinedFilled.Settings, "${BuildConfig.BRAND} 设置") {
+        if (wcxSettingsEnabled) list.add(FeatureEntry(FilledIcons.Settings, "${BuildConfig.BRAND} 设置") {
             try {
                 val intent = Intent(act, Class.forName("com.AARCNoa.zhiyou.activity.settings.SettingsActivity")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 act.startActivity(intent)
@@ -1649,17 +1636,17 @@ private fun isHomeTabClass(className: String): Boolean {
                 color = cs.surfaceVariant
             ) {
                 Column(Modifier.fillMaxSize()) {
-                    Spacer(Modifier.height((getStatusBarHeight(act) * 0.4).toInt().dp))
+                    Spacer(Modifier.height((act.statusBarHeight() * 0.4).toInt().dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("侧边栏", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = cs.onSurface, modifier = Modifier.weight(1f))
                         IconButton(onClick = { try { showPanelSettingsDialog(act) } catch (e: Throwable) { WeLogger.e(TAG, "设置按钮异常", e); showToast("配置面板打开失败：" + e.message) } }) {
-                            Icon(MaterialSymbols.OutlinedFilled.Settings, "设置", tint = cs.primary)
+                            Icon(FilledIcons.Settings, "设置", tint = cs.primary)
                         }
                         IconButton(onClick = { try { hidePanel() } catch (e: Throwable) { WeLogger.e(TAG, "关闭按钮异常", e) } }) {
-                            Icon(MaterialSymbols.OutlinedFilled.Close, "关闭", tint = cs.onSurfaceVariant)
+                            Icon(FilledIcons.Close, "关闭", tint = cs.onSurfaceVariant)
                         }
                     }
                     Box(Modifier.fillMaxWidth().height(1.dp).background(cs.outlineVariant)) {}
@@ -1680,26 +1667,26 @@ private fun isHomeTabClass(className: String): Boolean {
     }
 
     private fun iconFor(iconName: String): ImageVector = when (iconName) {
-        "Qr_code_scanner" -> MaterialSymbols.OutlinedFilled.Qr_code_scanner
-        "Wallet" -> MaterialSymbols.OutlinedFilled.Wallet
-        "Collections_bookmark" -> MaterialSymbols.OutlinedFilled.Bookmark
-        "Favorite" -> MaterialSymbols.OutlinedFilled.Favorite
-        "Person" -> MaterialSymbols.OutlinedFilled.Person
-        "Settings" -> MaterialSymbols.OutlinedFilled.Settings
-        "Camera" -> MaterialSymbols.OutlinedFilled.Camera
-        "Video_call" -> MaterialSymbols.OutlinedFilled.Movie
-        "Movie" -> MaterialSymbols.OutlinedFilled.Movie
-        else -> MaterialSymbols.OutlinedFilled.Add
+        "Qr_code_scanner" -> FilledIcons.Qr_code_scanner
+        "Wallet" -> FilledIcons.Wallet
+        "Collections_bookmark" -> FilledIcons.Bookmark
+        "Favorite" -> FilledIcons.Favorite
+        "Person" -> FilledIcons.Person
+        "Settings" -> FilledIcons.Settings
+        "Camera" -> FilledIcons.Camera
+        "Video_call" -> FilledIcons.Movie
+        "Movie" -> FilledIcons.Movie
+        else -> FilledIcons.Add
     }
 
     // ==================== 设置面板（开关 + 4 插槽选择 + 卡片配置入口）====================
     private fun showPanelSettingsDialog(act: Activity) {
         try {
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
             // 1. 卡片显示开关
             val cardHeader = TextView(act).apply {
                 text = "▌ 卡片显示"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4, act); bottomMargin = dp(4, act) }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 4.dpToPx(act); bottomMargin = 4.dpToPx(act) }
             }
             container.addView(cardHeader)
             addSwitchRow(container, act, "头部卡片（头像/签名/状态）", headerEnabled) { headerEnabled = it; refreshPanelContent(act) }
@@ -1710,7 +1697,7 @@ private fun isHomeTabClass(className: String): Boolean {
             // 2. 卡片独立配置入口
             val configHeader = TextView(act).apply {
                 text = "▌ 卡片独立配置（长按卡片也可触发）"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12, act); bottomMargin = dp(4, act) }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 12.dpToPx(act); bottomMargin = 4.dpToPx(act) }
             }
             container.addView(configHeader)
             addConfigEntryRow(container, act, "头像配置（3 模式）") { showAvatarConfigDialog(act) }
@@ -1721,7 +1708,7 @@ private fun isHomeTabClass(className: String): Boolean {
             // 3. 快捷功能插槽（4 槽）
             val slotHeader = TextView(act).apply {
                 text = "▌ 快捷功能（固定 4 槽，长按单槽可替换）"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12, act); bottomMargin = dp(4, act) }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = 12.dpToPx(act); bottomMargin = 4.dpToPx(act) }
             }
             container.addView(slotHeader)
             val slots = loadQuickSlots().take(4)
@@ -1767,7 +1754,7 @@ private fun isHomeTabClass(className: String): Boolean {
         try {
             val row = LinearLayout(act).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = dp(4, act); setMargins(0, m, 0, m) }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = 4.dpToPx(act); setMargins(0, m, 0, m) }
             }
             val tv = TextView(act).apply {
                 text = label; textSize = 14f
@@ -1786,8 +1773,8 @@ private fun isHomeTabClass(className: String): Boolean {
             val row = LinearLayout(act).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 isClickable = true; isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = dp(2, act); setMargins(0, m, 0, m) }
-                setPadding(0, dp(8, act), 0, dp(8, act))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = 2.dpToPx(act); setMargins(0, m, 0, m) }
+                setPadding(0, 8.dpToPx(act), 0, 8.dpToPx(act))
                 background = makeRippleBg(AndroidColor.parseColor("#11000000"))
                 setOnClickListener { onClick() }
             }
@@ -1802,19 +1789,19 @@ private fun isHomeTabClass(className: String): Boolean {
             val row = LinearLayout(act).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 isClickable = true; isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = dp(2, act); setMargins(0, m, 0, m) }
-                setPadding(0, dp(6, act), 0, dp(6, act))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { val m = 2.dpToPx(act); setMargins(0, m, 0, m) }
+                setPadding(0, 6.dpToPx(act), 0, 6.dpToPx(act))
                 background = makeRippleBg(AndroidColor.parseColor("#11000000"))
                 setOnClickListener { try { showSlotPickerDialog(act, slotId, current) } catch (e: Throwable) { WeLogger.e(TAG, "slot 选择异常", e) } }
             }
             val tvLabel = TextView(act).apply {
                 text = "槽位 $slotId"; textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(dp(60, act), LinearLayout.LayoutParams.WRAP_CONTENT)
+                layoutParams = LinearLayout.LayoutParams(60.dpToPx(act), LinearLayout.LayoutParams.WRAP_CONTENT)
             }
             val tvValue = TextView(act).apply {
                 text = "${iconPool[current.iconName] ?: "?"} ${current.name}"; textSize = 13f
                 setTextColor(AndroidColor.parseColor("#1976D2"))
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(8, act) }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 8.dpToPx(act) }
             }
             val arrow = TextView(act).apply { text = "›"; textSize = 20f; setTextColor(AndroidColor.parseColor("#888888")) }
             row.addView(tvLabel); row.addView(tvValue); row.addView(arrow); container.addView(row)
@@ -1893,7 +1880,7 @@ private fun isHomeTabClass(className: String): Boolean {
     private fun showAvatarConfigDialog(act: Activity) {
         try {
             val modeHolder = intArrayOf(avatarMode)
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
 
             val radioGroup = RadioGroup(act).apply {
                 orientation = RadioGroup.VERTICAL
@@ -1940,7 +1927,7 @@ private fun isHomeTabClass(className: String): Boolean {
     private fun showSignatureConfigDialog(act: Activity) {
         try {
             val modeHolder = intArrayOf(quoteMode)
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
 
             val radioGroup = RadioGroup(act).apply { orientation = RadioGroup.VERTICAL; layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT) }
             val r0 = RadioButton(act).apply { text = "模式1：自动获取微信个人签名"; id = 200; isChecked = quoteMode == 0 }
@@ -1989,7 +1976,7 @@ private fun isHomeTabClass(className: String): Boolean {
     private fun showStatusConfigDialog(act: Activity) {
         try {
             val onlineHolder = booleanArrayOf(isOnline)
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
             val swRow = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             val swLabel = TextView(act).apply { text = "在线"; textSize = 14f; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
             val sw = Switch(act).apply { isChecked = onlineHolder[0]; setOnCheckedChangeListener { _, c -> onlineHolder[0] = c } }
@@ -2015,7 +2002,7 @@ private fun isHomeTabClass(className: String): Boolean {
             val urlHolder = arrayOf(weatherApiUrl)
             val keyHolder = arrayOf(weatherApiKey)
             val fbHolder = arrayOf(weatherFallbackCity)
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
             container.addView(EditText(act).apply { setText(cityHolder[0]); hint = "城市（如 北京）" })
             container.addView(EditText(act).apply { setText(urlHolder[0]); hint = "天气 API 地址（留空=内置 Open-Meteo）" })
             container.addView(EditText(act).apply { setText(keyHolder[0]); hint = "API Key（可选）" })
@@ -2053,7 +2040,7 @@ private fun isHomeTabClass(className: String): Boolean {
             val urlHolder = arrayOf(dailyQuoteApiUrl)
             val keyHolder = arrayOf(dailyQuoteApiKey)
             val fbHolder = arrayOf(dailyQuoteFallback)
-            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20, act), dp(12, act), dp(20, act), dp(12, act)) }
+            val container = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(20.dpToPx(act), 12.dpToPx(act), 20.dpToPx(act), 12.dpToPx(act)) }
             container.addView(EditText(act).apply { setText(urlHolder[0]); hint = "每日一言 API 地址" })
             container.addView(EditText(act).apply { setText(keyHolder[0]); hint = "API Key（可选）" })
             container.addView(EditText(act).apply { setText(fbHolder[0]); hint = "兜底文案（API 失败时显示）" })
@@ -2091,15 +2078,6 @@ private fun isHomeTabClass(className: String): Boolean {
     private fun isDarkMode(act: Activity): Boolean = try {
         (act.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     } catch (_: Throwable) { false }
-
-    private fun dp(value: Int, ctx: Context): Int = try {
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), ctx.resources.displayMetrics).toInt()
-    } catch (_: Throwable) { value }
-
-    private fun getStatusBarHeight(act: Activity): Int = try {
-        val resourceId = act.resources.getIdentifier("status_bar_height", "dimen", "android")
-        if (resourceId > 0) act.resources.getDimensionPixelSize(resourceId) else 0
-    } catch (_: Throwable) { 0 }
 
     private fun showToast(text: String) {
         try {
@@ -2690,7 +2668,7 @@ private fun isHomeTabClass(className: String): Boolean {
                                         onClick = { localSideMode = 2 },
                                     )
                                 },
-                                headlineContent = { Text("方式二 · WeKit 侧边栏") },
+                                headlineContent = { Text("方式二 · 负一屏侧边栏") },
                                 supportingContent = { Text("负一屏全家桶：拖拽编辑/卡片/农历/一言/天气/钱包等") },
                             )
                             Text(

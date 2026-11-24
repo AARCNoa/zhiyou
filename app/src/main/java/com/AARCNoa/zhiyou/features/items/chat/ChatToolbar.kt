@@ -3,6 +3,10 @@ package com.AARCNoa.zhiyou.features.items.chat
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -60,29 +64,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.view.children
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Account_box
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Arrow_drop_down
-import com.composables.icons.materialsymbols.outlined.Attach_file
-import com.composables.icons.materialsymbols.outlined.Attach_money
-import com.composables.icons.materialsymbols.outlined.Camera
-import com.composables.icons.materialsymbols.outlined.Chat
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Drag_handle
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Favorite
-import com.composables.icons.materialsymbols.outlined.Format_list_numbered
-import com.composables.icons.materialsymbols.outlined.Location_on
-import com.composables.icons.materialsymbols.outlined.Mail
-import com.composables.icons.materialsymbols.outlined.Mic
-import com.composables.icons.materialsymbols.outlined.Music_note
-import com.composables.icons.materialsymbols.outlined.Photo_library
-import com.composables.icons.materialsymbols.outlined.Redeem
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Video_chat
-import com.composables.icons.materialsymbols.outlined.Voice_chat
 import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.createInstance
@@ -97,6 +78,7 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.findViewByChildIndexes
@@ -105,6 +87,7 @@ import com.AARCNoa.zhiyou.ui.utils.iterable
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
+import com.AARCNoa.zhiyou.utils.android.getTopMostActivity
 import com.AARCNoa.zhiyou.utils.now
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -132,22 +115,25 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
 
     private const val TAG = "ChatToolbar"
 
+    /** 我们注入的那层 ComposeView 的标记：判断「有没有注入过」只认它。 */
+    private const val TOOLBAR_TAG = "WCX_CHAT_TOOLBAR"
+
     private val NAME_TO_ICON_MAP = mapOf(
-        "相册" to MaterialSymbols.Outlined.Photo_library,
-        "拍摄" to MaterialSymbols.Outlined.Camera,
-        "系统拍摄" to MaterialSymbols.Outlined.Camera,
-        "视频通话" to MaterialSymbols.Outlined.Video_chat,
-        "语音通话" to MaterialSymbols.Outlined.Voice_chat,
-        "位置" to MaterialSymbols.Outlined.Location_on,
-        "红包" to MaterialSymbols.Outlined.Mail,
-        "礼物" to MaterialSymbols.Outlined.Redeem,
-        "转账" to MaterialSymbols.Outlined.Attach_money,
-        "语音输入" to MaterialSymbols.Outlined.Mic,
-        "收藏" to MaterialSymbols.Outlined.Favorite,
-        "接龙" to MaterialSymbols.Outlined.Format_list_numbered,
-        "文件" to MaterialSymbols.Outlined.Attach_file,
-        "个人名片" to MaterialSymbols.Outlined.Account_box,
-        "音乐" to MaterialSymbols.Outlined.Music_note
+        "相册" to OutlinedIcons.Photo_library,
+        "拍摄" to OutlinedIcons.Camera,
+        "系统拍摄" to OutlinedIcons.Camera,
+        "视频通话" to OutlinedIcons.Video_chat,
+        "语音通话" to OutlinedIcons.Voice_chat,
+        "位置" to OutlinedIcons.Location_on,
+        "红包" to OutlinedIcons.Mail,
+        "礼物" to OutlinedIcons.Redeem,
+        "转账" to OutlinedIcons.Attach_money,
+        "语音输入" to OutlinedIcons.Mic,
+        "收藏" to OutlinedIcons.Favorite,
+        "接龙" to OutlinedIcons.Format_list_numbered,
+        "文件" to OutlinedIcons.Attach_file,
+        "个人名片" to OutlinedIcons.Account_box,
+        "音乐" to OutlinedIcons.Music_note
     )
 
     // 快捷回复 is a wekit-injected item (not backed by a WeChat grid tool), so it lives
@@ -245,7 +231,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
     }
 
     private fun iconFor(name: String): ImageVector =
-        if (name == QUICK_REPLY_NAME) MaterialSymbols.Outlined.Chat else NAME_TO_ICON_MAP.getValue(name)
+        if (name == QUICK_REPLY_NAME) OutlinedIcons.Chat else NAME_TO_ICON_MAP.getValue(name)
 
     // Ensures every supported item is present while preserving the user's saved order. Legacy
     // configs that predate quick replies get that item inserted first.
@@ -263,13 +249,70 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
 
     private var lastToolListUpdateTime = now()
 
+    /** 补注入的限流：AppPanel 初始化会频繁触发，没必要每次都走一遍 View 树。 */
+    private var lastInjectAttemptTime = now()
+
     override fun onEnable() {
         try {
             registerHooks()
+            // footer 复用 / 开关在聊天页里打开时，构造器不会再跑，靠这个回调补注入。
+            ChatFooterHooks.addFooterListener(footerListener)
+            // 从设置页打开开关再退回会话时，footer 早已初始化；这里主动找一次。
+            scheduleSelfHeal()
         } catch (t: Throwable) {
             // 绝不静默：工具栏不显示时必须能从日志看出是「安装失败」还是「注入被跳过」
             WeLogger.e(TAG, "聊天工具栏安装失败（工具栏将不显示）：${t.message}", t)
         }
+    }
+
+    /**
+     * 开启后的自愈窗口：每 1.5 秒在当前页面树里找一次 ChatFooter，最多 15 秒。
+     *
+     * 场景是「在设置页打开开关 → 按返回回到刚才的会话」：那个 footer 早就构造完了，
+     * 构造器不会再跑；AppPanel 也可能因为面板已初始化而不再触发。找不到就静默退出，
+     * 不常驻、不轮询。
+     */
+    private fun scheduleSelfHeal() {
+        val handler = Handler(Looper.getMainLooper())
+        val started = SystemClock.uptimeMillis()
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                val injected = runCatching { injectIntoVisibleChat() }.getOrDefault(false)
+                if (injected) return
+                if (SystemClock.uptimeMillis() - started < 15_000L) handler.postDelayed(this, 1_500L)
+            }
+        }, 800L)
+    }
+
+    private fun injectIntoVisibleChat(): Boolean {
+        val activity = getTopMostActivity() ?: return false
+        val decor = activity.window?.decorView as? ViewGroup ?: return false
+        val footer = findChatFooter(decor) ?: return false
+        injectToolbar(footer)
+        return true
+    }
+
+    /** 广度优先找页面里的 ChatFooter，限层数与节点数，避免在大页面上扫太久。 */
+    private fun findChatFooter(root: ViewGroup): ChatFooter? {
+        val queue = ArrayDeque<View>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited++ < 400) {
+            val view = queue.removeFirst()
+            if (view is ChatFooter) return view
+            if (view is ViewGroup) {
+                for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
+            }
+        }
+        return null
+    }
+
+    private val footerListener: (ChatFooter) -> Unit = { footer ->
+        runCatching { injectToolbar(footer) }
+            .onFailure {
+                healthIssue = "工具栏注入异常：${it.message}"
+                WeLogger.e(TAG, "工具栏注入异常（工具栏将不显示）：${it.message}", it)
+            }
     }
 
     /** 递归收集面板内所有 GridView：微信 8.x 把工具格放在自定义 MMFlipper 里，层级会随版本变。 */
@@ -288,6 +331,28 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
 
         walk(root)
         return out
+    }
+
+    /**
+     * 采集原生工具项，填充 [toolsState]。返回采到的条数。
+     *
+     * 从任意容器出发（AppPanel 或 ChatFooter 本身）都用同一套：递归找 GridView、
+     * 枚举 adapter。注入时先采一次，避免「已注入但工具列表为空 → 行高 0 → 看起来没生效」。
+     */
+    private fun collectTools(root: View): Int {
+        val tools = mutableListOf<Pair<String, MenuItem>>()
+        collectGrids(root).forEach { grid ->
+            val adapter = grid.adapter ?: return@forEach
+            for (index in 0 until adapter.count) {
+                val itemView = runCatching { adapter.getView(index, null, grid) }.getOrNull()
+                    ?: continue
+                val name = toolNameOf(itemView) ?: continue
+                tools.add(name to MenuItem(name, WeakReference(grid), WeakReference(itemView), index))
+            }
+        }
+        WeLogger.i(TAG, "采集到 ${tools.size} 个原生工具项")
+        toolsState.value = tools
+        return tools.size
     }
 
     /** 工具项显示名：tag 里挂着持有名字 TextView 的对象；tag 结构变了就退回在 item 里直接找 TextView。 */
@@ -356,33 +421,22 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
             }
 
             hookAfter {
+                // 补注入放在限流之前：ChatFooter 会被复用，只靠构造器注入的话，
+                // 「在聊天页里打开开关」与「切回已初始化过的会话」都拿不到工具栏。
+                // AppPanel 就在 footer 内部，往上找到 footer 补一次，幂等由 tag 保证。
+                runCatching { ensureInjectedFromPanel(args[0] as? View) }
+                    .onFailure { WeLogger.w(TAG, "补注入失败（不影响已有工具栏）：${it.message}") }
+
                 val now = now()
                 if (now - lastToolListUpdateTime < 2.seconds) return@hookAfter
 
                 // 采集失败必须留痕：工具栏「什么都不显示」时要能从日志看出是没找到 GridView、
                 // adapter 拿不到项，还是取不到工具名——而不是一律静默成空白。
                 runCatching {
-                    val tools = mutableListOf<Pair<String, MenuItem>>()
-
-                    // 不再依赖 AppPanel 内部固定的 child 索引链（0,0,0）：微信每个版本都可能挪层级，
-                    // 递归找出面板里所有 GridView，只要能拿到 adapter 就能枚举工具项。
                     val appPanel = args[0] as? View ?: return@runCatching
-                    collectGrids(appPanel).forEach { grid ->
-                        val adapter = grid.adapter ?: return@forEach
-                        for (index in 0 until adapter.count) {
-                            val itemView = runCatching { adapter.getView(index, null, grid) }.getOrNull()
-                                ?: continue
-                            val name = toolNameOf(itemView) ?: continue
-                            tools.add(
-                                name to MenuItem(name, WeakReference(grid), WeakReference(itemView), index)
-                            )
-                        }
-                    }
-
-                    WeLogger.i(TAG, "采集到 ${tools.size} 个原生工具项")
-                    toolsState.value = tools
-                    healthIssue = if (tools.isEmpty()) {
-                        "已注入聊天页，但没采集到任何原生工具项（AppPanel 结构变化），工具栏是空的"
+                    collectTools(appPanel)
+                    healthIssue = if (toolsState.value.isEmpty()) {
+                        "没采集到任何原生工具项（AppPanel 结构变化），工具栏是空的"
                     } else null
                 }.onFailure {
                     healthIssue = "采集原生工具项失败：${it.message}（工具栏是空的）"
@@ -401,85 +455,12 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
         var hookedConstructors = 0
         ChatFooter::class.java.declaredConstructors.forEach { ctor ->
             ctor.hookAfter {
-            val chatFooter = thisObject as FrameLayout
-            val activity = chatFooter.context as Activity
-
-            val lifecycleOwner = LifecycleOwnerProvider.getOrCreate(activity)
-
-            chatFooter.setLifecycleOwner(lifecycleOwner)
-            // 主路径：ChatFooter 第 0 个子节点的第 1 层容器；失败再退化到「直接子节点里的第一个 LinearLayout」。
-            val linearLayout = chatFooter.findViewByChildIndexes<LinearLayout>(0, 1)
-                ?: (0 until chatFooter.childCount).firstNotNullOfOrNull { chatFooter.getChildAt(it) as? LinearLayout }
-            if (linearLayout == null) {
-                // 微信调整了 ChatFooter 内部层级：跳过本次注入（不再 NPE 中断整个 hook），并打印层级便于适配
-                healthIssue = "聊天页找不到注入容器（ChatFooter 层级变化），工具栏没有显示"
-                WeLogger.w(
-                    TAG,
-                    "ChatFooter 层级变化，找不到注入容器（子节点数=${chatFooter.childCount}）：${describeChildren(chatFooter)}"
-                )
-                return@hookAfter
-            }
-            linearLayout.setLifecycleOwner(lifecycleOwner)
-            if (linearLayout.findViewWhich<View> { it is ComposeView } != null) return@hookAfter
-            activity.window.decorView.setLifecycleOwner(lifecycleOwner)
-
-            linearLayout.addView(ComposeView(activity).apply {
-                setLifecycleOwner(lifecycleOwner)
-
-                setContent {
-                    InjectedUiTheme {
-                        val tools by toolsState.collectAsStateWithLifecycle()
-                        val itemsOrder = remember { itemsOrder }
-                        val enabledItems = remember { enabledItems }
-                        val displayMode = remember { ToolbarDisplayMode.fromPreference(displayModeValue) }
-
-                        val sortedVisibleItems = remember(tools) {
-                            if (tools.isEmpty()) return@remember emptyList()
-
-                            val firstTool = tools[0].second
-                            val orderList = normalizeOrder(itemsOrder.split(",").filter { it.isNotEmpty() })
-                            val list = mutableListOf<Pair<String, () -> Unit>>()
-
-                            list.add(QUICK_REPLY_NAME to {
-                                showQuickReplyPicker(activity)
-                            })
-
-                            list.add("相册" to { firstTool.click() })
-                            list.add("系统拍摄" to { firstTool.longClick() })
-
-                            tools.forEach { (name, menuItem) ->
-                                if (name in NAME_TO_ICON_MAP && name != "相册" && name != "系统拍摄") {
-                                    list.add(name to { menuItem.click() })
-                                }
-                            }
-
-                            list.distinctBy { it.first }
-                                .filter { it.first in enabledItems }
-                                .sortedBy { item ->
-                                    val idx = orderList.indexOf(item.first)
-                                    if (idx == -1) Int.MAX_VALUE else idx
-                                }
-                        }
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp),
-                        ) {
-                            items(sortedVisibleItems, key = { it.first }) { (name, onClick) ->
-                                val icon = iconFor(name)
-                                FeatureChip(name, icon, displayMode, onClick)
-                            }
-                        }
+                val chatFooter = thisObject as? FrameLayout ?: return@hookAfter
+                runCatching { injectToolbar(chatFooter) }
+                    .onFailure {
+                        healthIssue = "工具栏注入异常：${it.message}"
+                        WeLogger.e(TAG, "工具栏注入异常（工具栏将不显示）：${it.message}", it)
                     }
-                }
-            }, 0)
-            // 注入成功：采集结果由 AppPanel 的 hookAfter 决定（那里会把 0 项也回报上来）
-            if (toolsState.value.isEmpty()) {
-                healthIssue = "工具栏已注入聊天页，但当前没采集到原生工具项（AppPanel 结构变化）"
-            } else {
-                healthIssue = null
-            }
-            WeLogger.i(TAG, "聊天工具栏已注入聊天页（容器子 View 数=${linearLayout.childCount}）")
             }
             hookedConstructors++
         }
@@ -489,7 +470,140 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
         WeLogger.i(TAG, "聊天工具栏 hook 已安装（$hookedConstructors 个构造器，聊天页创建时注入）")
     }
 
+    /**
+     * 往 ChatFooter 里注入工具栏，**可重复调用**。
+     *
+     * 两条入口：构造器（新会话）与 AppPanel 初始化（footer 被复用、开关在会话里打开）。
+     * 幂等靠 [TOOLBAR_TAG]：不能用「容器里有 ComposeView」判断，微信自己也可能在容器里放
+     * ComposeView，那样会把我们的注入当成已存在而静默跳过。
+     */
+    private fun injectToolbar(chatFooter: FrameLayout) {
+        val activity = chatFooter.context.findActivity() ?: run {
+            healthIssue = "聊天页取不到 Activity，工具栏没有显示"
+            WeLogger.w(TAG, "取不到 Activity：context=${chatFooter.context.javaClass.name}")
+            return
+        }
+        val lifecycleOwner = LifecycleOwnerProvider.getOrCreate(activity)
+        chatFooter.setLifecycleOwner(lifecycleOwner)
+
+        // 主路径：ChatFooter 第 0 个子节点的第 1 层容器；失败再退化到「直接子节点里的第一个 LinearLayout」。
+        val linearLayout = chatFooter.findViewByChildIndexes<LinearLayout>(0, 1)
+            ?: (0 until chatFooter.childCount).firstNotNullOfOrNull { chatFooter.getChildAt(it) as? LinearLayout }
+        if (linearLayout == null) {
+            // 微信调整了 ChatFooter 内部层级：跳过本次注入（不再 NPE 中断整个 hook），并打印层级便于适配
+            healthIssue = "聊天页找不到注入容器（ChatFooter 层级变化），工具栏没有显示"
+            WeLogger.w(
+                TAG,
+                "ChatFooter 层级变化，找不到注入容器（子节点数=${chatFooter.childCount}）：${describeChildren(chatFooter)}"
+            )
+            return
+        }
+        linearLayout.setLifecycleOwner(lifecycleOwner)
+        if (linearLayout.findViewWhich<View> { it.tag == TOOLBAR_TAG } != null) return
+        activity.window.decorView.setLifecycleOwner(lifecycleOwner)
+
+        linearLayout.addView(ComposeView(activity).apply {
+            tag = TOOLBAR_TAG
+            setLifecycleOwner(lifecycleOwner)
+
+            setContent {
+                InjectedUiTheme {
+                    val tools by toolsState.collectAsStateWithLifecycle()
+                    val itemsOrder = remember { itemsOrder }
+                    val enabledItems = remember { enabledItems }
+                    val displayMode = remember { ToolbarDisplayMode.fromPreference(displayModeValue) }
+
+                    val sortedVisibleItems = remember(tools) {
+                        if (tools.isEmpty()) return@remember emptyList()
+
+                        val firstTool = tools[0].second
+                        val orderList = normalizeOrder(itemsOrder.split(",").filter { it.isNotEmpty() })
+                        val list = mutableListOf<Pair<String, () -> Unit>>()
+
+                        list.add(QUICK_REPLY_NAME to {
+                            showQuickReplyPicker(activity)
+                        })
+
+                        list.add("相册" to { firstTool.click() })
+                        list.add("系统拍摄" to { firstTool.longClick() })
+
+                        tools.forEach { (name, menuItem) ->
+                            if (name in NAME_TO_ICON_MAP && name != "相册" && name != "系统拍摄") {
+                                list.add(name to { menuItem.click() })
+                            }
+                        }
+
+                        list.distinctBy { it.first }
+                            .filter { it.first in enabledItems }
+                            .sortedBy { item ->
+                                val idx = orderList.indexOf(item.first)
+                                if (idx == -1) Int.MAX_VALUE else idx
+                            }
+                    }
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                    ) {
+                        items(sortedVisibleItems, key = { it.first }) { (name, onClick) ->
+                            val icon = iconFor(name)
+                            FeatureChip(name, icon, displayMode, onClick)
+                        }
+                    }
+                }
+            }
+        }, 0)
+        // 注入完立刻采一次：工具列表为空时 LazyRow 高度是 0，用户会以为注入失败。
+        // 采集失败不影响注入本身，交给 AppPanel 回调重试。
+        if (toolsState.value.isEmpty()) {
+            runCatching { collectTools(chatFooter) }
+        }
+        // 注入成功：采集结果由 AppPanel 的 hookAfter 决定（那里会把 0 项也回报上来）
+        if (toolsState.value.isEmpty()) {
+            healthIssue = "工具栏已注入聊天页，但当前没采集到原生工具项（AppPanel 结构变化）"
+        } else {
+            healthIssue = null
+        }
+        WeLogger.i(TAG, "聊天工具栏已注入聊天页（容器子 View 数=${linearLayout.childCount}）")
+    }
+
+    /**
+     * 从 AppPanel 往上找 ChatFooter 并补一次注入。
+     *
+     * 微信会复用 ChatFooter：同一个 ChattingUI 里切换会话不会再走构造器，
+     * 开关又是在设置页打开的（那一刻页面上没有 footer）。只靠构造器注入，
+     * 表现就是「开关开着、日志里 hook 也装了，但当前会话什么都没有」。
+     */
+    private fun ensureInjectedFromPanel(panel: View?) {
+        // 1 秒一次：兜底路径，不需要比这更灵敏；真正的入口仍是构造器。
+        val now = now()
+        if (now - lastInjectAttemptTime < 1.seconds) return
+        lastInjectAttemptTime = now
+
+        var view: View? = panel
+        var guard = 0
+        while (view != null && guard++ < 16) {
+            if (view is ChatFooter) {
+                injectToolbar(view)
+                return
+            }
+            view = view.parent as? View
+        }
+    }
+
+    /** Context 可能被包了一层（ContextThemeWrapper），逐层解包到 Activity。 */
+    private fun Context.findActivity(): Activity? {
+        var context: Context? = this
+        var guard = 0
+        while (context != null && guard++ < 8) {
+            if (context is Activity) return context
+            context = (context as? ContextWrapper)?.baseContext
+        }
+        return null
+    }
+
     override fun onDisable() {
+        ChatFooterHooks.removeFooterListener(footerListener)
         toolsState.value = emptyList()
     }
 
@@ -519,7 +633,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                 supportingContent = { Text(currentDisplayMode.label) },
                                 trailingContent = {
                                     Icon(
-                                        MaterialSymbols.Outlined.Arrow_drop_down,
+                                        OutlinedIcons.Arrow_drop_down,
                                         contentDescription = "选择显示样式",
                                     )
                                 },
@@ -533,7 +647,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                         text = { Text(mode.label) },
                                         trailingIcon = if (mode == currentDisplayMode) ({
                                             Icon(
-                                                MaterialSymbols.Outlined.Check,
+                                                OutlinedIcons.Check,
                                                 contentDescription = null,
                                             )
                                         }) else null,
@@ -576,7 +690,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        MaterialSymbols.Outlined.Drag_handle,
+                                        OutlinedIcons.Drag_handle,
                                         contentDescription = "拖动 $name",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -605,7 +719,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                 if (name == QUICK_REPLY_NAME) {
                                     IconButton(onClick = { showQuickReplyConfig(context) }) {
                                         Icon(
-                                            MaterialSymbols.Outlined.Settings,
+                                            OutlinedIcons.Settings,
                                             contentDescription = "配置快捷回复",
                                         )
                                     }
@@ -745,7 +859,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                     }
                                 }
                             ) {
-                                Icon(MaterialSymbols.Outlined.Add, contentDescription = null)
+                                Icon(OutlinedIcons.Add, contentDescription = null)
                                 Text("添加")
                             }
                         }
@@ -791,7 +905,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Icon(
-                                            MaterialSymbols.Outlined.Drag_handle,
+                                            OutlinedIcons.Drag_handle,
                                             contentDescription = "拖动快捷回复",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -807,13 +921,13 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                                     )
                                     IconButton(onClick = editReply) {
                                         Icon(
-                                            MaterialSymbols.Outlined.Edit,
+                                            OutlinedIcons.Edit,
                                             contentDescription = "编辑快捷回复",
                                         )
                                     }
                                     IconButton(onClick = { replies.removeAll { it.id == reply.id } }) {
                                         Icon(
-                                            MaterialSymbols.Outlined.Delete,
+                                            OutlinedIcons.Delete,
                                             contentDescription = "删除快捷回复",
                                             tint = MaterialTheme.colorScheme.error,
                                         )

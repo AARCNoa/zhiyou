@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AARCNoa.zhiyou.ai.AiDates.timeOf
 import com.AARCNoa.zhiyou.ai.group.GroupDigest
 import com.AARCNoa.zhiyou.ai.group.GroupDigestConfig
 import com.AARCNoa.zhiyou.ai.group.GroupDigestRunner
@@ -51,7 +51,7 @@ import kotlinx.coroutines.withContext
 /**
  * 单个群的管理页：开关、频率、下次时间、立即总结、历史、删除。
  *
- * 打开即把该群未读清零 —— 用户已经看见历史了。
+ * 打开即把该群未读清零。
  */
 @Composable
 internal fun AiGroupDialog(
@@ -127,6 +127,28 @@ internal fun AiGroupDialog(
             if (updated != null) {
                 withContext(Dispatchers.IO) {
                     if (on) GroupDigestScheduler.schedule(groupId) else GroupDigestScheduler.cancel(groupId)
+                }
+            }
+            reload()
+            onChanged()
+        }
+    }
+
+    fun setWorkGroup(on: Boolean) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                GroupDigestStore.update(groupId) { current ->
+                    if (on) {
+                        current.copy(workGroup = true)
+                    } else {
+                        // 关掉就清任务：留着会让列表继续显示一个不再更新的进度。
+                        current.copy(
+                            workGroup = false,
+                            currentTask = "",
+                            currentProgress = -1,
+                            currentTaskAt = 0L,
+                        )
+                    }
                 }
             }
             reload()
@@ -217,6 +239,17 @@ internal fun AiGroupDialog(
                     "下次 " + timeOf(nextRunAtOf(current.anchorAt, current.intervalMinutes, System.currentTimeMillis()))
                 } else {
                     "打开后按下面的频率运行"
+                },
+            )
+
+            AiSwitchRow(
+                title = "工作群",
+                checked = current.workGroup,
+                onCheckedChange = { setWorkGroup(it) },
+                subtitle = when {
+                    !current.workGroup -> "总结时一并判断当前任务与进度，显示在群名后"
+                    current.currentTask.isBlank() -> "还没有识别到在推进的任务"
+                    else -> taskLabel(current.currentTask, current.currentProgress)
                 },
                 showDivider = false,
             )
@@ -338,41 +371,7 @@ private fun DigestRow(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = timeOf(digest.createdAt),
-                fontSize = 11.sp,
-                color = WxPalette.textTertiary(),
-            )
-            if (digest.manual) {
-                Spacer(Modifier.width(6.dp))
-                Text("手动", fontSize = 10.sp, color = WxPalette.Primary)
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "${digest.messageCount} 条",
-                fontSize = 10.sp,
-                color = WxPalette.textTertiary(),
-            )
-        }
-        Text(
-            text = digest.headline,
-            fontSize = 14.sp,
-            color = WxPalette.textPrimary(),
-            maxLines = if (expanded) 10 else 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (expanded) {
-            digest.points.forEach { point ->
-                Text("· $point", fontSize = 13.sp, color = WxPalette.textSecondary(), lineHeight = 19.sp)
-            }
-            if (digest.todos.isNotEmpty()) {
-                Text("待办", fontSize = 12.sp, color = WxPalette.textSecondary(), fontWeight = FontWeight.Medium)
-                digest.todos.forEach { todo ->
-                    Text("· $todo", fontSize = 13.sp, color = WxPalette.textSecondary(), lineHeight = 19.sp)
-                }
-            }
-        }
+        DigestContent(digest = digest, expanded = expanded, showMessageCount = true)
     }
 }
 

@@ -33,13 +33,8 @@ object CopyWeChatDebugInfo : ClickableFeature(), IResolveDex {
 
         val onClickListener = methodOnClick.method.declaringClass
             .createInstance(SettingsAboutMMHeaderPreference(context))
-        // WeChat has a check:
-        // long jCurrentTimeMillis = System.currentTimeMillis();
-        //        long j16 = this.f158935d;
-        //        if (j16 > jCurrentTimeMillis || jCurrentTimeMillis - j16 > 300) {
-        //            this.f158935d = jCurrentTimeMillis;
-        //            return;
-        //        }
+        // 微信在这个点击处有 300ms 防抖：字段值距今不足 300ms 就直接 return。
+        // 先把字段设成当前时间，再调用一次，点击才算真正生效。
         onClickListener.reflekt()
             .firstField {
                 type = Long::class

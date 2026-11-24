@@ -256,7 +256,7 @@ object AiPrompts {
      * **标签与记忆不在这里**：它们描述的是「对方」，和这一段讲的「你是谁」是两种视角，
      * 混在一起模型容易把对方的属性读成自己的。它们在 [suggestUser] 里，紧挨着最后一句。
      */
-    fun suggestSystem(profile: AiProfile): String {
+    fun suggestSystem(profile: AiProfile, reportEvent: Boolean = false): String {
         val goal = profile.goal
         val stage = goal?.stage?.ifBlank { goal.relation }?.ifBlank { "未知" } ?: "未知"
         val goalText = buildString {
@@ -310,6 +310,16 @@ object AiPrompts {
             }
             appendLine()
             appendLine("关系尺度：当前阶段 $stage · 聊天目标 $goalText")
+            if (reportEvent) {
+                appendLine()
+                appendLine("另外，这条对话里出现下面几类事，就调用 report_important_event 记一条：")
+                appendLine("- 对方提出见面、出去玩、一起做什么（去哪、玩什么、什么时候），即使还没定下来。")
+                appendLine("- 对方告知的重要情况：怀孕、生病受伤、家里出事、工作变动、要离开或要来找你。")
+                appendLine("- 你答应下来的事（帮什么忙、什么时候给答复）。")
+                appendLine("日常闲聊、撒娇、报备吃什么不记；同一件事只记一次，")
+                appendLine("已经记过的（下面聊天记录之后列了）不要换个说法再提交一遍。")
+                appendLine("记完继续照常写回复，不要把「记下了」这件事写进回复里。")
+            }
             appendLine()
             appendLine("只输出一行 JSON，不要代码块、不要解释：")
             append("{\"read\":\"对方这句话想要什么\",\"replies\":[\"...\",\"...\",\"...\"]}")
@@ -342,6 +352,14 @@ object AiPrompts {
         samples: String = "",
         /** 是否附了一张图：补一句说明，让模型知道图和记录怎么对应。 */
         hasImage: Boolean = false,
+        /**
+         * 今天已经记进总览的事（标题）。
+         *
+         * 用「今天」而不是「未读」：用户点开看过后红点清零，若按未读注入，模型会以为
+         * 这件事没记过而重新提交一次。只有用户手动清空，这些标题才会从提示词里消失。
+         * 放在档案之前 —— 档案是最后读到、最该被记住的一段，不要被一串标题打断。
+         */
+        reportedEvents: List<String> = emptyList(),
     ): String = buildString {
         appendLine("${dayLabel}的聊天：")
         appendLine(transcript.ifBlank { "（没有聊天记录）" })
@@ -351,6 +369,11 @@ object AiPrompts {
             appendLine()
             appendLine("你最近发过的话（长度、断句照这个来）：")
             appendLine(samples)
+        }
+        if (reportedEvents.isNotEmpty()) {
+            appendLine()
+            appendLine("今天已经记过的事（不要重复提交，换个说法说的同一件事也算）：")
+            reportedEvents.forEach { appendLine("- $it") }
         }
         appendLine()
         appendLine("对方的档案（用来理解他的话，不要当话题翻出来）：")

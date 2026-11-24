@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -31,9 +32,6 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Delete
 import com.AARCNoa.zhiyou.features.items.contacts.HideContacts
 import com.AARCNoa.zhiyou.features.items.contacts.localizedContactsQuantity
 
@@ -231,7 +229,7 @@ internal fun HideContacts.showSchedulesDialog(context: Context) {
                                 }
                             }
                         ) {
-                            Icon(MaterialSymbols.Outlined.Add, contentDescription = null)
+                            Icon(OutlinedIcons.Add, contentDescription = null)
                             Text("添加")
                         }
                     }
@@ -283,7 +281,7 @@ internal fun HideContacts.showSchedulesDialog(context: Context) {
                                                 onClick = { schedules.removeAll { it.id == schedule.id } }
                                             ) {
                                                 Icon(
-                                                    MaterialSymbols.Outlined.Delete,
+                                                    OutlinedIcons.Delete,
                                                     contentDescription = "删除定时",
                                                     tint = MaterialTheme.colorScheme.error,
                                                 )

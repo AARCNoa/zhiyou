@@ -19,10 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Visibility
-import com.composables.icons.materialsymbols.outlined.Visibility_off
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 /**
  * A setting widget that displays the current string value on a standard clickable row and
@@ -76,7 +73,7 @@ fun TextFieldDialogWidget(
             reveal = false
             showDialog = true
         },
-        trailingContent = { Icon(MaterialSymbols.Outlined.Edit, null) },
+        trailingContent = { Icon(OutlinedIcons.Edit, null) },
     )
 
     if (!showDialog) return
@@ -99,9 +96,9 @@ fun TextFieldDialogWidget(
                         IconButton(onClick = { reveal = !reveal }) {
                             Icon(
                                 imageVector = if (reveal) {
-                                    MaterialSymbols.Outlined.Visibility_off
+                                    OutlinedIcons.Visibility_off
                                 } else {
-                                    MaterialSymbols.Outlined.Visibility
+                                    OutlinedIcons.Visibility
                                 },
                                 contentDescription = null,
                             )

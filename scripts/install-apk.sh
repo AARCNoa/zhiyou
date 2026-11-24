@@ -74,7 +74,7 @@ command -v cygpath >/dev/null 2>&1 && APK_FOR_ADB="$(cygpath -w "$APK")"
 LOG="/sdcard/Android/data/com.tencent.mm/WCX/logs/wcx-$(date +%Y-%m-%d).log"
 # 先记下当前行数：只统计本次启动新增的行。
 # 旧实现用 tail -n 200，新包日志很少时会把上一版（或上一次启动）的错误算进来，
-# 表现为「明明 0 错误却报 3 条」——排查时极易误判为本次改动引入。
+# 表现为「明明 0 错误却报 3 条」——排查时极易误判。
 BEFORE_LINES=$("$ADB" shell "wc -l < '$LOG' 2>/dev/null" | tr -d '\r\n' | tr -dc '0-9')
 [ -z "$BEFORE_LINES" ] && BEFORE_LINES=0
 

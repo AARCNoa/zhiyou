@@ -10,7 +10,7 @@ import java.lang.reflect.Executable
 
 typealias HookAction = XC_MethodHook.MethodHookParam.() -> Unit
 
-// ---- WeKit-compat (IHookBridge) surface used by merged official features ----
+// ---- 上游兼容（IHookBridge）接口：合并进来的官方功能会用到 ----
 typealias HookParam = com.AARCNoa.zhiyou.loader.abc.IHookBridge.IMemberHookParam
 
 typealias HookHandle = com.AARCNoa.zhiyou.loader.abc.IHookBridge.MemberUnhookHandle

@@ -43,10 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Close
 import com.AARCNoa.zhiyou.constants.PackageNames
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.LocationOnRedIcon
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -277,7 +275,7 @@ private fun OsmPickerHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onDismiss) {
-            Icon(MaterialSymbols.Outlined.Close, contentDescription = "Cancel")
+            Icon(OutlinedIcons.Close, contentDescription = "Cancel")
         }
         Text(
             text = "地图选点",
@@ -290,7 +288,7 @@ private fun OsmPickerHeader(
             enabled = pickedPoint != null,
         ) {
             Icon(
-                imageVector = MaterialSymbols.Outlined.Check,
+                imageVector = OutlinedIcons.Check,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
             )

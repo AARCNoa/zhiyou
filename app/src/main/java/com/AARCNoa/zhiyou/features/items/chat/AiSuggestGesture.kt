@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import com.AARCNoa.zhiyou.ai.AiProfileAudit
 import com.AARCNoa.zhiyou.ai.AiProfileState
 import com.AARCNoa.zhiyou.ai.AiProfileStore
+import com.AARCNoa.zhiyou.ai.displayNameOrId
 import com.AARCNoa.zhiyou.ai.AiRunState
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
 import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageViewApi
@@ -203,7 +204,7 @@ object AiSuggestGesture : ApiFeature() {
                     return@Runnable
                 }
                 // 胶囊里显示对方名字：双击后第一眼就能确认绑到了哪个会话。
-                val title = profile.remark.ifBlank { profile.nickname }.ifBlank { talker }
+                val title = profile.displayNameOrId
                 activity.runOnUiThread {
                     if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                     if (AiSuggestOverlay.isShowingFor(talker)) return@runOnUiThread
@@ -213,6 +214,8 @@ object AiSuggestGesture : ApiFeature() {
                         activity = activity,
                         talker = talker,
                         title = title,
+                        memoryCount = profile.memories.size,
+                        tagCount = profile.tags.size,
                     )
                 }
             },

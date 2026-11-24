@@ -2,6 +2,7 @@ package com.AARCNoa.zhiyou.ai.group
 
 import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.ai.AiProfileStore
+import com.AARCNoa.zhiyou.ai.storeLog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -255,8 +256,5 @@ object GroupDigestStore {
     // ── 日志 ────────────────────────────────────────────────────────────────
 
     /** 与 `AiProfileStore` 一致：同时走 WeLogger 与 logcat，模块进程里前者未必写得进目录。 */
-    private fun log(message: String) {
-        runCatching { WeLogger.w(TAG, message) }
-        runCatching { android.util.Log.w("WCX-GroupDigestStore", message) }
-    }
+    private fun log(message: String) = storeLog(TAG, message)
 }

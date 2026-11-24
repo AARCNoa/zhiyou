@@ -71,6 +71,7 @@ import dev.ujhhgtg.reflekt.utils.Modifiers
 import dev.ujhhgtg.reflekt.utils.toClass
 
 
+import com.AARCNoa.zhiyou.ui.utils.statusBarHeight
 import com.AARCNoa.zhiyou.ui.utils.parseArgbFlexible
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexClass
@@ -479,12 +480,6 @@ object Themes : ClickableFeature(), IResolveDex {
         return (dp.toFloat() * density).roundToInt()
     }
 
-    /** cherrywechat S5.a(context, "status_bar_height") */
-    private fun statusBarHeight(context: Context): Int {
-        val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) context.resources.getDimensionPixelSize(id) else withDensity(25)
-    }
-
     @Volatile
     private var actionBarHeight = 0
 
@@ -657,7 +652,7 @@ object Themes : ClickableFeature(), IResolveDex {
             0,
             ViewGroup.LayoutParams(
                 -1,
-                statusBarHeight(viewGroup.context) + actionBarHeight
+                viewGroup.context.statusBarHeight(25) + actionBarHeight
             )
         )
     }
@@ -1558,7 +1553,7 @@ object Themes : ClickableFeature(), IResolveDex {
         firstChildViewGroupWithClass(
                 viewGroup,
                 "androidx.appcompat.widget.ActionBarContainer"
-            )?.setPadding(0, statusBarHeight(activity), 0, 0)
+            )?.setPadding(0, activity.statusBarHeight(25), 0, 0)
         setNullBgRecursively(viewGroup)
         if (swipeChild != null) {
             addSettingActionbarBackground(swipeChild)
@@ -1620,7 +1615,7 @@ object Themes : ClickableFeature(), IResolveDex {
                     0,
                     ViewGroup.LayoutParams(
                         -1,
-                        statusBarHeight(activity) + actionBarHeightOf(activity)
+                        activity.statusBarHeight(25) + actionBarHeightOf(activity)
                     )
                 )
             }
@@ -1662,7 +1657,7 @@ object Themes : ClickableFeature(), IResolveDex {
                                 0,
                                 ViewGroup.LayoutParams(
                                     -1,
-                                    actionBarHeightOf(activity) + statusBarHeight(activity)
+                                    actionBarHeightOf(activity) + activity.statusBarHeight(25)
                                 )
                             )
                         }
@@ -1716,14 +1711,14 @@ object Themes : ClickableFeature(), IResolveDex {
                                         0,
                                         ViewGroup.LayoutParams(
                                             -1,
-                                            actionBarHeightOf(activity) + statusBarHeight(activity)
+                                            actionBarHeightOf(activity) + activity.statusBarHeight(25)
                                         )
                                     )
                                 }
                                 val column = LinearLayout(wrapper.context).apply {
                                     orientation = LinearLayout.VERTICAL
                                 }
-                                column.addView(Space(wrapper.context), -1, statusBarHeight(activity))
+                                column.addView(Space(wrapper.context), -1, activity.statusBarHeight(25))
                                 chattingUiLayout.removeView(chatChild)
                                 column.addView(chatChild, -1, -2)
                                 wrapper.addView(column, -1, -2)
@@ -1756,7 +1751,7 @@ object Themes : ClickableFeature(), IResolveDex {
                                 0,
                                 ViewGroup.LayoutParams(
                                     -1,
-                                    actionBarHeightOf(activity) + statusBarHeight(activity)
+                                    actionBarHeightOf(activity) + activity.statusBarHeight(25)
                                 )
                             )
                         }
@@ -2719,7 +2714,7 @@ object Themes : ClickableFeature(), IResolveDex {
                         0,
                         ViewGroup.LayoutParams(
                             -1,
-                            actionBarHeightOf(activity) + statusBarHeight(activity)
+                            actionBarHeightOf(activity) + activity.statusBarHeight(25)
                         )
                     )
                 }

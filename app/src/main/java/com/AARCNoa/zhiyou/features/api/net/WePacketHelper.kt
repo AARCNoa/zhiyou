@@ -428,7 +428,7 @@ object WePacketHelper : ApiFeature(), IResolveDex {
                         when (method.name) {
                             "hashCode" -> return@newProxyInstance System.identityHashCode(proxy)
                             "equals" -> return@newProxyInstance proxy === args?.get(0)
-                            "toString" -> return@newProxyInstance "WeKitNativeCallback@${
+                            "toString" -> return@newProxyInstance "ModuleNativeCallback@${
                                 Integer.toHexString(
                                     System.identityHashCode(proxy)
                                 )
@@ -489,8 +489,27 @@ object WePacketHelper : ApiFeature(), IResolveDex {
         val specificReqCls = cgiReqClassMap[cgiId]
 
         if (specificReqCls != null) {
-            finalReqObject = specificReqCls.createInstance()
-            finalReqObject.reflekt().invokeMethod("parseFrom", bytes, superclass = true)
+            // parseFrom 是静态工厂（`parseFrom(byte[]) -> XxxReq`），返回**新对象**，不会修改传入的那个。
+            // 原实现先 createInstance() 再调 parseFrom 并把返回值丢掉，等于把一个空对象塞进请求体：
+            // 微信后续 toByteArray 时 computeSize() 在空字段上抛 NPE，请求实际发不出去。
+            val parsed = runCatching {
+                specificReqCls.declaredMethods.firstOrNull {
+                    it.name == "parseFrom" &&
+                        it.parameterTypes.size == 1 &&
+                        it.parameterTypes[0] == ByteArray::class.java &&
+                        java.lang.reflect.Modifier.isStatic(it.modifiers)
+                }?.let { method ->
+                    method.isAccessible = true
+                    method.invoke(null, bytes)
+                }
+            }.getOrNull()
+            if (parsed == null) {
+                // 保底退回原行为：至少不会因为这一步失败把整个发送流程打断。
+                WeLogger.w(TAG, "[$cgiId] ${specificReqCls.name} 没有可用的 parseFrom，请求体可能为空")
+                finalReqObject = specificReqCls.createInstance()
+            } else {
+                finalReqObject = parsed
+            }
             WeLogger.i(TAG, "[$cgiId] using specific class: ${specificReqCls.name}")
         } else {
             val rawCls = classRawReq.clazz

@@ -10,12 +10,15 @@ import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
 import com.AARCNoa.zhiyou.features.core.ApiFeature
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.utils.HostInfo
+import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.reflection.BString
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Modifier
 
 @Feature(name = "微信服务管理服务", categories = ["API"], description = "提供获取并使用微信服务的能力")
 object WeServiceApi : ApiFeature(), IResolveDex {
+
+    private const val TAG = "WeServiceApi"
 
     private val methodServiceManagerGetService by dexMethod {
         matcher {
@@ -259,11 +262,15 @@ object WeServiceApi : ApiFeature(), IResolveDex {
     }
 
     override fun resolveDex(dexKit: DexKitBridge) {
+        // 零命中 / 多命中都只让本功能降级：抛异常会中断整轮 resolveDex。
         val classMmKernel = dexKit.findClass {
             matcher {
                 usingEqStrings("MicroMsg.MMKernel", "Kernel not null, has initialized.")
             }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "MMKernel 类未找到或多命中，视频路径恢复不可用")
+            return
+        }
 
         methodMmKernelGetServiceImpl.find(dexKit) {
             matcher {
@@ -285,6 +292,10 @@ object WeServiceApi : ApiFeature(), IResolveDex {
                 }
             }
         }
-        methodVideoPathFeatureServiceRestoreMp4Path.setDescriptor(results.single())
+        val restoreMethod = results.singleOrNull() ?: run {
+            WeLogger.e(TAG, "视频路径恢复方法未找到或多命中（${results.size} 个），该能力不可用")
+            return
+        }
+        methodVideoPathFeatureServiceRestoreMp4Path.setDescriptor(restoreMethod)
     }
 }

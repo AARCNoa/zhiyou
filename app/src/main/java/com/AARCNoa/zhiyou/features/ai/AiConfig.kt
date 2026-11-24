@@ -116,6 +116,26 @@ object AiConfig {
     const val CUE_STYLE_WOOD = "wood"
     const val CUE_STYLE_DEEP = "deep"
 
+    /**
+     * 朋友圈「帮我评论」是否启用，默认开。
+     *
+     * 它不是功能清单里的开关：AI 相关能力都放在 AI 页的「设置」段，
+     * 与提示音、识别图片这些放一起，不用去朋友圈分类里翻。
+     */
+    const val KEY_MOMENTS_COMMENT = "ai_moments_comment_enabled"
+
+    /**
+     * 自动回复的静默窗口（秒），默认 8。
+     *
+     * 对方把一段话拆成几条发时，每条都会重置计时，只有最后一条之后这么久没有新消息才回。
+     * 它同时是「两次回复之间的最小间隔」：回复发出去之后对方再说话，仍要等满这个窗口。
+     * 低于 3 秒容易抢话；高于 60 秒对方会觉得没人。
+     */
+    const val KEY_REPLY_DELAY_SEC = "ai_auto_reply_delay_sec"
+    const val DEFAULT_REPLY_DELAY_SEC = 8
+    const val MIN_REPLY_DELAY_SEC = 3
+    const val MAX_REPLY_DELAY_SEC = 60
+
     const val DEFAULT_URL = "https://api.deepseek.com/chat/completions"
     const val DEFAULT_MODEL = "deepseek-chat"
 
@@ -306,6 +326,38 @@ object AiConfig {
     val isCueSoundEnabled: Boolean
         get() = prefsAvailable && runCatching { WePrefs.getBoolOrDef(KEY_CUE_SOUND, true) }
             .getOrDefault(true)
+
+    /** 朋友圈「帮我评论」是否开启。默认开；关掉后朋友圈长按菜单里不再出现这一项。 */
+    val isMomentsCommentEnabled: Boolean
+        get() = prefsAvailable && runCatching { WePrefs.getBoolOrDef(KEY_MOMENTS_COMMENT, true) }
+            .getOrDefault(true)
+
+    fun setMomentsCommentEnabled(enabled: Boolean) {
+        if (!prefsAvailable) return
+        runCatching { WePrefs.putBool(KEY_MOMENTS_COMMENT, enabled) }
+            .onFailure { WeLogger.e(TAG, "save moments comment failed", it) }
+        WeLogger.i(TAG, "朋友圈帮我评论 -> ${if (enabled) "开" else "关"}")
+    }
+
+    /** 自动回复静默窗口（秒）。越界值一律夹回 [MIN_REPLY_DELAY_SEC, MAX_REPLY_DELAY_SEC]。 */
+    val replyDelaySec: Int
+        get() {
+            if (!prefsAvailable) return DEFAULT_REPLY_DELAY_SEC
+            return runCatching { WePrefs.getIntOrDef(KEY_REPLY_DELAY_SEC, DEFAULT_REPLY_DELAY_SEC) }
+                .getOrDefault(DEFAULT_REPLY_DELAY_SEC)
+                .coerceIn(MIN_REPLY_DELAY_SEC, MAX_REPLY_DELAY_SEC)
+        }
+
+    /** 静默窗口（毫秒），自动回复直接拿去 delay。 */
+    val replyDelayMs: Long get() = replyDelaySec * 1000L
+
+    fun setReplyDelaySec(sec: Int) {
+        if (!prefsAvailable) return
+        val safe = sec.coerceIn(MIN_REPLY_DELAY_SEC, MAX_REPLY_DELAY_SEC)
+        runCatching { WePrefs.putInt(KEY_REPLY_DELAY_SEC, safe) }
+            .onFailure { WeLogger.e(TAG, "save reply delay failed", it) }
+        WeLogger.i(TAG, "回复延迟 -> ${safe}s")
+    }
 
     fun setCueSoundEnabled(enabled: Boolean) {
         if (!prefsAvailable) return

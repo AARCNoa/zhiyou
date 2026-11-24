@@ -17,14 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Schedule
 
 import java.text.ParsePosition
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 const val MINUTES_PER_DAY: Int = 24 * 60
 
@@ -90,7 +89,7 @@ fun WeDateTimeField(
                 },
             ) {
                 Icon(
-                    MaterialSymbols.Outlined.Schedule,
+                    OutlinedIcons.Schedule,
                     contentDescription = "选择时间",
                 )
             }

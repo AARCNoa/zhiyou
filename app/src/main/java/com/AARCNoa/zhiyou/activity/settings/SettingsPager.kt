@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,30 +44,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.composables.icons.materialsymbols.outlined.Groups
-import com.composables.icons.materialsymbols.outlined.Language
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.openInSystem
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Account_circle
-import com.composables.icons.materialsymbols.outlined.Auto_delete
-import com.composables.icons.materialsymbols.outlined.Block
-import com.composables.icons.materialsymbols.outlined.Brightness_medium
-import com.composables.icons.materialsymbols.outlined.Build_circle
-import com.composables.icons.materialsymbols.outlined.Colorize
-import com.composables.icons.materialsymbols.outlined.Contrast
-import com.composables.icons.materialsymbols.outlined.Delete_forever
-import com.composables.icons.materialsymbols.outlined.Download
-import com.composables.icons.materialsymbols.outlined.Frame_bug
-import com.composables.icons.materialsymbols.outlined.License
-import com.composables.icons.materialsymbols.outlined.Notifications
-import com.composables.icons.materialsymbols.outlined.Palette
-import com.composables.icons.materialsymbols.outlined.Rule_settings
-import com.composables.icons.materialsymbols.outlined.Style
-import com.composables.icons.materialsymbols.outlined.Sync
-import com.composables.icons.materialsymbols.outlined.Upload
-import com.composables.icons.materialsymbols.outlined.Wallpaper
 import com.mikepenz.aboutlibraries.Libs
 import com.mikepenz.aboutlibraries.entity.Library
+import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.aboutlibraries.AboutLibrariesProvider
 import com.AARCNoa.zhiyou.constants.Preferences
 import com.AARCNoa.zhiyou.features.api.core.WeApi
@@ -75,6 +57,8 @@ import com.AARCNoa.zhiyou.features.items.debug.ResetDexCache
 import com.AARCNoa.zhiyou.preferences.WePrefs
 import com.AARCNoa.zhiyou.preferences.exportConfig
 import com.AARCNoa.zhiyou.preferences.importConfig
+import com.AARCNoa.zhiyou.update.UpdateChecker
+import com.AARCNoa.zhiyou.update.UpdateResult
 import com.AARCNoa.zhiyou.ui.style.SoftCard
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.ui.content.DropdownField
@@ -110,7 +94,7 @@ import com.AARCNoa.zhiyou.ui.style.fxReveal
 /**
  * 设置页的一组设置：小标题 + 白卡。
  *
- * 六组设置原本各写一遍 `MiuixSmallTitle + SoftCard(contentPadding = 0, fillMaxWidth())`，
+ * 原先每组各写一遍 `MiuixSmallTitle + SoftCard(contentPadding = 0, fillMaxWidth())`，
  * 只有「界面」那组带 [fxReveal] 动效——同一屏一半有动效一半没有。现在统一从这里发出，
  * 动效按 [order] 依次错开。
  */
@@ -133,6 +117,31 @@ fun SettingsPager(
 
     var showClearConfirm by remember { mutableStateOf(false) }
 
+    // 更新：这里只读缓存（主页那次自动检查已经写好结果），点「检查更新」才联网。
+    // 缓存值放进 state 而不是每次重组现读：检查完成后副标题必须跟着变，
+    // 不能指望「弹窗状态变了顺带重组到这一行」。
+    var available by remember { mutableStateOf(UpdateChecker.cachedAvailable()) }
+    var updateDialog by remember { mutableStateOf<UpdateDialogState>(UpdateDialogState.Hidden) }
+    var checking by remember { mutableStateOf(false) }
+    val updateScope = rememberCoroutineScope()
+
+    fun runUpdateCheck() {
+        if (checking) return
+        checking = true
+        updateDialog = UpdateDialogState.Checking
+        updateScope.launch {
+            val result = UpdateChecker.check(force = true)
+            available = result as? UpdateResult.Available
+            updateDialog = when (result) {
+                is UpdateResult.Available ->
+                    UpdateDialogState.Available(result.manifest, result.asset)
+                UpdateResult.UpToDate -> UpdateDialogState.UpToDate
+                is UpdateResult.Failed -> UpdateDialogState.Failed(result.reason)
+            }
+            checking = false
+        }
+    }
+
     ClearConfigDialog(show = showClearConfirm, onDismiss = { showClearConfirm = false })
 
     // 顶部标题交给底部导航表达（「设置」已在导航栏里），这里整页只有内容。
@@ -147,14 +156,14 @@ fun SettingsPager(
             ProfileCard()
         }
 
-        // 六组设置全部走 settingsGroup：小标题 + 白卡同一套模板，动效按序错开。
+        // 各分组全部走 settingsGroup：小标题 + 白卡同一套模板，动效按序错开。
         settingsGroup(1, "界面") { ThemeSection() }
 
         settingsGroup(2, "微信主题") {
             PrefArrow(
                 title = "主题工坊",
                 summary = "内置 6 款全局主题，全局沉浸壁纸（主页/通讯录/发现/我的 4 个界面，或全部界面）+ 对应气泡，支持透明度调节与备份恢复",
-                icon = MaterialSymbols.Outlined.Palette,
+                icon = OutlinedIcons.Palette,
                 onClick = { ThemeStore.onClick(context) },
             )
         }
@@ -164,19 +173,19 @@ fun SettingsPager(
                 key = Preferences.VERBOSE_LOG,
                 title = "详细日志",
                 summary = "输出高频日志 (这可能会暴露你的隐私信息）",
-                icon = MaterialSymbols.Outlined.Frame_bug,
+                icon = OutlinedIcons.Frame_bug,
             )
             PrefSwitch(
                 key = Preferences.SHOW_STARTUP_TOAST,
                 title = "显示加载完成 Toast",
                 summary = "加载完成后提示（仅前台启动）",
-                icon = MaterialSymbols.Outlined.Notifications,
+                icon = OutlinedIcons.Notifications,
             )
             PrefSwitch(
                 key = Preferences.MATCH_GENERIC_WXID_EXP,
                 title = "清理消息内容微信 ID 前缀时允许非标准 ID",
                 summary = "允许处理不带 'wxid_' 前缀的微信 ID, 可能导致误伤消息原始内容 (实验性)",
-                icon = MaterialSymbols.Outlined.Rule_settings,
+                icon = OutlinedIcons.Rule_settings,
             )
         }
 
@@ -185,19 +194,19 @@ fun SettingsPager(
                 key = Preferences.NO_DEX_RESOLVE,
                 title = "禁用版本适配",
                 summary = "不弹出 DEX 查找对话框，未适配功能将不会被加载",
-                icon = MaterialSymbols.Outlined.Block,
+                icon = OutlinedIcons.Block,
             )
             PrefArrow(
                 title = "重置适配信息",
                 summary = "清除 DEX 缓存, 等待下次启动时重新适配",
-                icon = MaterialSymbols.Outlined.Build_circle,
+                icon = OutlinedIcons.Build_circle,
                 onClick = { ResetDexCache.onClick(context) },
             )
             PrefSwitch(
                 key = Preferences.RESET_DEX_ON_HOT_UPDATE,
                 title = "宿主热更新时重新适配",
                 summary = "宿主热更新时是否重置 DEX 缓存, 可能导致频繁重新适配 (实验性)",
-                icon = MaterialSymbols.Outlined.Auto_delete,
+                icon = OutlinedIcons.Auto_delete,
             )
         }
 
@@ -205,30 +214,40 @@ fun SettingsPager(
             PrefArrow(
                 title = "导出配置",
                 summary = "将模块配置导出为 JSON",
-                icon = MaterialSymbols.Outlined.Upload,
+                icon = OutlinedIcons.Upload,
                 onClick = { exportConfig(context) },
             )
             PrefArrow(
                 title = "导入配置",
                 summary = "从 JSON 导入模块配置; JSON 中的配置将会与现有配置合并, 覆盖所有已存在的配置",
-                icon = MaterialSymbols.Outlined.Download,
+                icon = OutlinedIcons.Download,
                 onClick = { importConfig(context) },
             )
             PrefArrow(
                 title = "清除配置",
                 summary = "清除全部模块配置 (警告: 此操作不可逆!)",
-                icon = MaterialSymbols.Outlined.Delete_forever,
+                icon = OutlinedIcons.Delete_forever,
                 onClick = { showClearConfirm = true },
+            )
+        }
+
+        // 更新放「配置」之后、「关于」之前：它既不是配置，也不属于关于。
+        settingsGroup(6, "更新") {
+            PrefArrow(
+                title = "检查更新",
+                summary = updateSummary(available),
+                icon = OutlinedIcons.Update,
+                onClick = { runUpdateCheck() },
             )
         }
 
         // 「版本 / 激活框架」已从设置里移除：主页底部的模块信息卡已经在展示，
         // 设置页再列一遍属于同一信息两处维护。
-        settingsGroup(6, "关于") {
+        settingsGroup(7, "关于") {
             PrefArrow(
                 title = "项目地址",
                 summary = PROJECT_URL.removePrefix("https://"),
-                icon = MaterialSymbols.Outlined.Language,
+                icon = OutlinedIcons.Language,
                 onClick = {
                     runCatching { Uri.parse(PROJECT_URL).openInSystem(context, useCustomTabs = true) }
                 },
@@ -236,7 +255,7 @@ fun SettingsPager(
             PrefArrow(
                 title = "交流群",
                 summary = "Telegram 群组：使用问题与更新通知",
-                icon = MaterialSymbols.Outlined.Groups,
+                icon = OutlinedIcons.Groups,
                 onClick = {
                     runCatching { Uri.parse(GROUP_URL).openInSystem(context, useCustomTabs = true) }
                 },
@@ -244,7 +263,7 @@ fun SettingsPager(
             PrefArrow(
                 title = "开源许可",
                 summary = "本项目使用的开源库许可",
-                icon = MaterialSymbols.Outlined.License,
+                icon = OutlinedIcons.License,
                 onClick = onOpenLicense,
             )
         }
@@ -252,6 +271,18 @@ fun SettingsPager(
         item { Spacer(Modifier.height(CONTENT_BOTTOM_INSET)) }
       }
     }
+
+    UpdateDialogHost(
+        state = updateDialog,
+        onDismiss = { updateDialog = UpdateDialogState.Hidden },
+        onRetry = { runUpdateCheck() },
+    )
+}
+
+/** 设置页「检查更新」的副标题：当前版本在前，有新版才追加后半句。 */
+private fun updateSummary(available: UpdateResult.Available?): String {
+    val current = "当前 ${BuildConfig.VERSION_NAME}"
+    return if (available == null) current else "$current · 有新版本 ${available.manifest.versionName}"
 }
 
 // ---------------------------------------------------------------------------
@@ -365,7 +396,7 @@ private fun AvatarPlaceholder() {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = MaterialSymbols.Outlined.Account_circle,
+            imageVector = OutlinedIcons.Account_circle,
             contentDescription = null,
             modifier = Modifier.size(34.dp),
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -409,14 +440,14 @@ private fun ThemeSection() {
         selected = ThemeSettings.themeMode,
         labelOf = { it.displayName },
         onSelected = { ThemeSettings.updateThemeMode(it) },
-        icon = MaterialSymbols.Outlined.Brightness_medium,
+        icon = OutlinedIcons.Brightness_medium,
     )
 
     var customColor by remember { mutableStateOf(ThemeSettings.customColor) }
     SwitchPreference(
         title = "自定义颜色",
         summary = "使用调色板样式生成配色, 而非 Miuix 默认蓝",
-        startAction = { PrefIcon(MaterialSymbols.Outlined.Palette) },
+        startAction = { PrefIcon(OutlinedIcons.Palette) },
         checked = customColor,
         onCheckedChange = {
             customColor = it
@@ -433,7 +464,7 @@ private fun ThemeSection() {
             SwitchPreference(
                 title = "动态壁纸取色",
                 summary = "使用系统壁纸的强调色作为种子\n需系统 Android SDK >= 31",
-                startAction = { PrefIcon(MaterialSymbols.Outlined.Wallpaper) },
+                startAction = { PrefIcon(OutlinedIcons.Wallpaper) },
                 checked = dynamicWallpaper,
                 onCheckedChange = {
                     dynamicWallpaper = it
@@ -444,7 +475,7 @@ private fun ThemeSection() {
                 BasicComponent(
                     title = "种子颜色",
                     summary = "点击选择配色的种子颜色",
-                    startAction = { PrefIcon(MaterialSymbols.Outlined.Colorize) },
+                    startAction = { PrefIcon(OutlinedIcons.Colorize) },
                     onClick = { showColorPicker = true },
                     endActions = {
                         Box(
@@ -468,7 +499,7 @@ private fun ThemeSection() {
                         ThemeSettings.updateColorSpec(AppColorSpec.SPEC_2021)
                     }
                 },
-                icon = MaterialSymbols.Outlined.Style,
+                icon = OutlinedIcons.Style,
             )
             val spec2025Supported = ThemeSettings.paletteStyle.supportsSpec2025
             EnumDropdown(
@@ -479,14 +510,14 @@ private fun ThemeSection() {
                 onSelected = { ThemeSettings.updateColorSpec(it) },
                 enabled = spec2025Supported,
                 summary = if (!spec2025Supported) "当前调色板样式仅支持 Material 3 (2021)" else null,
-                icon = MaterialSymbols.Outlined.Contrast,
+                icon = OutlinedIcons.Contrast,
             )
 
             var applyToWechat by remember { mutableStateOf(ThemeSettings.applyToWechat) }
             SwitchPreference(
                 title = "同时对微信生效",
                 summary = "将自定义配色应用到微信本身",
-                startAction = { PrefIcon(MaterialSymbols.Outlined.Sync) },
+                startAction = { PrefIcon(OutlinedIcons.Sync) },
                 checked = applyToWechat,
                 onCheckedChange = {
                     applyToWechat = it

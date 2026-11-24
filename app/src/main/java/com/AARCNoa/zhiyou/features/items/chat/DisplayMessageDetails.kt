@@ -9,13 +9,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Info
 import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.ChatInfoIcon
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
@@ -37,7 +36,7 @@ object DisplayMessageDetails : SwitchFeature(),
         return listOf(
             WeChatMessageContextMenuApi.MenuItem(
                 777005, "查看详情",
-                ChatInfoIcon, MaterialSymbols.Outlined.Info, { _ -> true },
+                ChatInfoIcon, OutlinedIcons.Info, { _ -> true },
                 // per-message detail dialog; has no meaning for a batch selection
                 multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Unsupported
             )

@@ -64,9 +64,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import com.AARCNoa.zhiyou.ai.AiSuggestEngine
+import com.AARCNoa.zhiyou.ai.profileCountsText
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
+import com.AARCNoa.zhiyou.ui.utils.dpToPx
+import com.AARCNoa.zhiyou.ui.utils.statusBarHeight
 import com.AARCNoa.zhiyou.ui.utils.XposedLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.theme.ModuleTheme
@@ -86,7 +89,7 @@ import kotlinx.coroutines.withContext
  * 位置**贴标题栏下沿**，不再贴输入框上沿：聊天内容是从下往上读的，卡片放在底部正好压住
  * 最新的消息；而且放在顶部就不必跟着键盘上移，省掉了一套逐帧对齐的 pre-draw 逻辑。
  *
- * 为什么不用 Dialog / Scrim：这两个都是模态的。用户要求「自己不点建议、直接发消息时卡片收起」，
+ * 为什么不用 Dialog / Scrim：这两个都是模态的。不点建议、直接发消息时卡片要能自动收起，
  * 前提是**输入栏仍然可以正常用** —— 模态遮罩会把输入栏挡住。所以只有这一层 `WRAP_CONTENT`
  * 的 ComposeView 挂在 decorView 上，点别处会穿透到聊天页，退出页面时移除。
  */
@@ -215,9 +218,9 @@ object AiSuggestOverlay {
         val page = findByClassName(decor, CHATTING_LAYOUT_CLASS) ?: decor
         val titleBottom = bottomInWindow(page, decor, ACTION_BAR_CONTAINER_CLASS)
         val listTop = topInWindow(page, decor) { isMessageList(it) }
-        val statusBar = statusBarHeight(activity)
+        val statusBar = activity.statusBarHeight(28)
         val base = maxOf(titleBottom, listTop, statusBar)
-        return base + dip(activity, 8)
+        return base + 8.dpToPx(activity)
     }
 
     private fun findByClassName(root: ViewGroup, className: String): View? {
@@ -295,18 +298,17 @@ object AiSuggestOverlay {
         return false
     }
 
-    private fun statusBarHeight(activity: Activity): Int {
-        val id = activity.resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) activity.resources.getDimensionPixelSize(id) else dip(activity, 28)
-    }
-
     /**
      * @param title 对方显示名，显示在胶囊里用来确认绑定的是哪个会话。
+     * @param memoryCount / @param tagCount 档案规模：显示在名字下方的小字，
+     *   让用户知道这次建议参考了多少记忆与标签。都为 0 时不显示。
      */
     fun show(
         activity: Activity,
         talker: String,
         title: String,
+        memoryCount: Int = 0,
+        tagCount: Int = 0,
     ) {
         dismiss()
 
@@ -334,6 +336,8 @@ object AiSuggestOverlay {
                     SuggestCard(
                         talker = talker,
                         title = title,
+                        memoryCount = memoryCount,
+                        tagCount = tagCount,
                         onDismiss = { dismiss() },
                     )
                 }
@@ -400,9 +404,6 @@ object AiSuggestOverlay {
             2_600L,
         )
     }
-
-    private fun dip(activity: Activity, value: Int): Int =
-        (activity.resources.displayMetrics.density * value).toInt()
 }
 
 /**
@@ -439,6 +440,8 @@ private fun NoticeCapsule(text: String) {
 private fun SuggestCard(
     talker: String,
     title: String,
+    memoryCount: Int,
+    tagCount: Int,
     onDismiss: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -570,6 +573,16 @@ private fun SuggestCard(
                         modifier = Modifier
                             .clickable { onDismiss() }
                             .padding(horizontal = 2.dp, vertical = 2.dp),
+                    )
+                }
+                // 与朋友圈「帮我评论」同一行文案：有档案才显示规模（记忆 / 标签条数）。
+                val counts = profileCountsText(memoryCount, tagCount)
+                if (counts.isNotEmpty()) {
+                    Text(
+                        text = counts,
+                        fontSize = 10.sp,
+                        color = WxPalette.textTertiary(),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             } else {
@@ -787,7 +800,7 @@ private fun ReplyRow(reply: String, talker: String, onSent: () -> Unit) {
  * 不旋转画布 —— 那样会把圆角矩形（宽高不等）一起转歪；改颜色则只动渐变、不动形状。
  */
 @Composable
-private fun marqueeBrush(): Brush {
+internal fun marqueeBrush(): Brush {
     val transition = rememberInfiniteTransition(label = "marquee")
     val phase by transition.animateFloat(
         initialValue = 0f,
@@ -807,7 +820,7 @@ private fun marqueeBrush(): Brush {
 
 /** 三点跳动：三个圆点错峰缩放，替代转圈（转圈看不出「正在等模型」）。 */
 @Composable
-private fun InlineDots() {
+internal fun InlineDots() {
     val transition = rememberInfiniteTransition(label = "dots")
     Row(verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { index ->

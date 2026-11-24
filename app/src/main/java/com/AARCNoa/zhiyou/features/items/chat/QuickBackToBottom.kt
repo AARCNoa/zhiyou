@@ -42,7 +42,7 @@ object QuickBackToBottom : SwitchFeature(), IResolveDex {
     private const val BUBBLE_BOTTOM_MARGIN_DP = 44
 
     /**
-     * 气泡图标是双上箭头, 微信显示「x条新消息」时 rotation=0 (gd.java:321);
+     * 气泡图标是双上箭头, 微信显示「x条新消息」时 rotation=0（`gd` 里写死）;
      * 「回到最新」语义是向下, 与微信同图标的「回到引用位置」气泡 (XML rotation=180) 一致。
      */
     private const val BUBBLE_ICON_ROTATION = 180f
@@ -50,7 +50,6 @@ object QuickBackToBottom : SwitchFeature(), IResolveDex {
     private const val BUBBLE_TEXT = "回到最新"
 
     /** 点击后的原生加载链路完成窗口, 期间抑制「以下为新消息」分隔条。 */
-    // TODO: rewrite this ai slop
     private const val SUPPRESS_HISTORY_MSG_TIP_WINDOW_MS = 5_000L
 
     /** 每个 footer 对应的消息列表 RecyclerView, 避免每帧做整树 DFS。 */
@@ -263,11 +262,19 @@ object QuickBackToBottom : SwitchFeature(), IResolveDex {
         bubble.layoutParams = lp
     }
 
-    /** 距最新消息还剩多少像素可滚。RecyclerView 桩 (HOST. 前缀) 直接提供这三个公开方法。 */
-    private fun distanceToBottom(recycler: ChattingRecyclerView): Int {
-        val rv = recycler as? androidx.recyclerview.widget.RecyclerView ?: return 0
-        return (rv.computeVerticalScrollRange() - rv.computeVerticalScrollOffset() -
-            rv.computeVerticalScrollExtent()).coerceAtLeast(0)
+    /**
+     * 距最新消息还剩多少像素可滚。
+     *
+     * 直接调桩上声明的方法，不写 `as? RecyclerView`：模块自带一份 androidx.recyclerview，
+     * 与宿主那份未必是同一个类，cast 失败会静默返回 0 —— 气泡就再也不出现。
+     * 读不到只可能是宿主结构变了：打一行 D，按「已贴底」处理（不显示气泡）。
+     */
+    private fun distanceToBottom(recycler: ChattingRecyclerView): Int = runCatching {
+        (recycler.computeVerticalScrollRange() - recycler.computeVerticalScrollOffset() -
+            recycler.computeVerticalScrollExtent()).coerceAtLeast(0)
+    }.getOrElse {
+        WeLogger.d(TAG, "读取滚动位置失败（${it.javaClass.simpleName}），气泡按贴底处理")
+        0
     }
 
     /**

@@ -1000,10 +1000,21 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
 
     /**
      * 从 [snsInfo] 反射解析出原生 TimeLineObject（长按菜单场景外，例如后台扫描时使用）。
+     *
+     * 四条路按能力依次探测，谁先拿到就用谁 —— **旧版本的无参方法分支放在最前，行为不变**：
+     * 1. 无参方法：8.0.75 ~ 8.0.79 的主路径；
+     * 2. 字段：个别版本把它缓存在字段里；
+     * 3. 带一个标量参数的方法：8.0.80 出现 `getTimeLineObject(boolean)` 这类写法，
+     *    补 `false / 0` 再调一次；
+     * 4. `TimeLineObject.parseFrom(field_content)`：SnsInfo 本来存着这份序列化字节，
+     *    前面都不通时自己解一个出来。
+     *
+     * 四级全失败才返回 null：那时朋友圈图片定位不了，但纯文字评论仍然可用。
      */
     fun getNativeTimeline(snsInfo: Any?): Any? {
         val normalized = normalizeSnsInfo(snsInfo) ?: return null
-        return runCatching {
+
+        runCatching {
             normalized.reflekt().firstMethodOrNull {
                 parameters()
                 superclass()
@@ -1012,24 +1023,73 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
         }.getOrElse { error ->
             WeLogger.e(TAG, "failed to resolve native TimeLineObject", error)
             null
+        }?.let { return it }
+
+        runCatching {
+            normalized.reflekt().firstFieldOrNull {
+                type { timelineObjectClass.isAssignableFrom(it) }
+                superclass()
+            }?.get()
+        }.getOrNull()?.let { return it }
+
+        runCatching {
+            normalized.reflekt().firstMethodOrNull {
+                parameterCount = 1
+                superclass()
+                returnType { timelineObjectClass.isAssignableFrom(it) }
+            }?.let { method ->
+                val arg = when (method.parameterTypes[0]) {
+                    Boolean::class.javaPrimitiveType, Boolean::class.java -> false
+                    Int::class.javaPrimitiveType, Int::class.javaObjectType -> 0
+                    else -> return@let null
+                }
+                method.invoke(normalized, arg)
+            }
+        }.getOrNull()?.let { return it }
+
+        val bytes = getContent(normalized) ?: run {
+            WeLogger.w(TAG, "没有原生 TimeLineObject 也没有 field_content：${normalized.javaClass.name}")
+            return null
+        }
+        return runCatching {
+            timelineObjectClass.getMethod("parseFrom", ByteArray::class.java).invoke(null, bytes)
+        }.getOrElse { error ->
+            WeLogger.w(
+                TAG,
+                "原生 TimeLineObject 四级探测都失败（${normalized.javaClass.name}）：${error.message}",
+            )
+            null
         }
     }
 
     /**
      * 从原生 TimeLineObject 中取出原生 MediaObj 列表（图片/视频路径解析需要）。
+     *
+     * 主路径仍是「ContentObj 里 `a`..`r` 的 `LinkedList` 字段」；8.0.80 起这个字段有可能
+     * 换成别的 List 实现，那就取第一个非空 List 字段再包一层 `LinkedList`（调用方按它遍历）。
      */
     fun getNativeMediaList(nativeTimeline: Any): LinkedList<*>? {
-        return runCatching {
-            val nativeContentObj = nativeTimeline.reflekt().getField("ContentObj")!!
-            nativeContentObj.reflekt().firstField {
+        val contentObj = runCatching { nativeTimeline.reflekt().getField("ContentObj") }.getOrNull()
+            ?: return null
+        runCatching {
+            contentObj.reflekt().firstFieldOrNull {
                 // single-char field name in 'a'..'r'
                 name { it.length == 1 && it[0] >= 'a' && it[0] <= 'r' }
                 type = LinkedList::class
-            }.get() as? LinkedList<*>
-        }.getOrElse { error ->
-            WeLogger.e(TAG, "failed to resolve native media list", error)
-            null
-        }
+            }?.get() as? LinkedList<*>
+        }.getOrNull()?.let { if (it.isNotEmpty()) return it }
+
+        // 兜底：字段类型变了。只认可枚举出的 List 字段，且必须非空 ——
+        // 空列表当不了依据，返回 null 让调用方按「没有原生媒体」处理。
+        val anyList = runCatching {
+            contentObj.javaClass.declaredFields.asSequence()
+                .onEach { it.isAccessible = true }
+                .mapNotNull { field -> runCatching { field.get(contentObj) }.getOrNull() }
+                .filterIsInstance<List<*>>()
+                .firstOrNull { it.isNotEmpty() }
+        }.getOrNull() ?: return null
+        WeLogger.w(TAG, "native media list 不是 LinkedList（${anyList.javaClass.simpleName}，${anyList.size} 项），已转接")
+        return LinkedList(anyList)
     }
 
     data class MomentContent(
@@ -1720,7 +1780,7 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
     }
 
     private fun livePhotoProbeMarker(index: Int): Int =
-        "WeKitLivePhotoFieldProbe".hashCode() xor index
+        "ModuleLivePhotoFieldProbe".hashCode() xor index
 
     private fun hasLivePhotoMetric(text: String, label: String, value: Number): Boolean =
         text.contains("$label=$value")

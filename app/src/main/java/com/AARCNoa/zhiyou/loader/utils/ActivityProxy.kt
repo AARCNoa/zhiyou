@@ -34,6 +34,23 @@ import java.lang.reflect.Proxy
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * 把模块自己的 Activity 代理到**微信进程**里启动。
+ *
+ * 为什么需要：模块 Activity 声明在模块 APK 里，直接 startActivity 会落到模块自己的进程，
+ * 那里 MMKV、偏好、AI 数据都没初始化，设置页一打开就崩。代理后由微信进程的
+ * Instrumentation 真正拉起 Activity，运行环境与功能一致。
+ *
+ * 做法：[init] 时包住 Instrumentation、IActivityManager、Handler.Callback 三处入口。
+ * 凡 Intent 的 `component.className` 以模块包名开头，就换成微信的壳 Activity
+ * （设置页 → `WeChatSplashActivity`，其余 → `AppBrandProxyTransparentUI`），原 Intent 存进
+ * token；壳启动后再 `setClassName` 换成真实 Activity。
+ *
+ * 两个必须知道的副作用：
+ * - 判定只看 `component.className`，所以注入页里显式启动模块 Activity **也会被改写**；
+ *   要让用户看到模块自己的界面（而不是代理壳），只能走隐式 action 交给系统解析。
+ * - 被代理的 Activity 必须在 manifest 里声明 `exported="true"`，否则路由后拉不起来。
+ */
 object ActivityProxy {
 
     private const val TAG = "ActivityProxy"

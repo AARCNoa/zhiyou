@@ -46,16 +46,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Arrow_drop_down
-import com.composables.icons.materialsymbols.outlined.Autorenew
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Person
-import com.composables.icons.materialsymbols.outlined.Search
-import com.composables.icons.materialsymbols.outlined.Send
 import com.AARCNoa.zhiyou.features.api.core.WeApi
 import com.AARCNoa.zhiyou.features.items.chat.panel.PanelSettings
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.roundToLong
@@ -240,7 +233,7 @@ fun <T> PanelDropdownSetting(
             colors = panelListItemColors(),
             headlineContent = { Text(title) },
             supportingContent = { Text(selectedLabel) },
-            trailingContent = { Icon(MaterialSymbols.Outlined.Arrow_drop_down, null) },
+            trailingContent = { Icon(OutlinedIcons.Arrow_drop_down, null) },
         )
         DropdownMenu(
             expanded = expanded,
@@ -250,7 +243,7 @@ fun <T> PanelDropdownSetting(
                 DropdownMenuItem(
                     text = { Text(label) },
                     trailingIcon = if (value == selected) ({
-                        Icon(MaterialSymbols.Outlined.Check, null)
+                        Icon(OutlinedIcons.Check, null)
                     }) else null,
                     onClick = {
                         expanded = false
@@ -287,10 +280,10 @@ fun PanelFunBoxApiClientIdPrompt(
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { input = WeApi.selfWxId }) {
-                        Icon(MaterialSymbols.Outlined.Person, "填入当前微信 ID")
+                        Icon(OutlinedIcons.Person, "填入当前微信 ID")
                     }
                     IconButton(onClick = { input = PanelSettings.randomFunBoxApiClientWxId() }) {
-                        Icon(MaterialSymbols.Outlined.Autorenew, "随机生成微信 ID")
+                        Icon(OutlinedIcons.Autorenew, "随机生成微信 ID")
                     }
                 }
             },
@@ -352,18 +345,18 @@ fun PanelSearchField(
         enabled = enabled,
         singleLine = true,
         label = { Text(label) },
-        leadingIcon = { Icon(MaterialSymbols.Outlined.Search, null) },
+        leadingIcon = { Icon(OutlinedIcons.Search, null) },
         trailingIcon = when {
             extraTrailingIcon != null || onSearch != null -> ({
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     extraTrailingIcon?.invoke()
                     if (onSearch != null) {
                         IconButton(onClick = onSearch, enabled = enabled && value.isNotBlank()) {
-                            Icon(MaterialSymbols.Outlined.Send, "搜索")
+                            Icon(OutlinedIcons.Send, "搜索")
                         }
                     } else if (value.isNotEmpty()) {
                         IconButton(onClick = { onValueChange("") }) {
-                            Icon(MaterialSymbols.Outlined.Close, "清除搜索")
+                            Icon(OutlinedIcons.Close, "清除搜索")
                         }
                     }
                 }
@@ -371,7 +364,7 @@ fun PanelSearchField(
 
             value.isNotEmpty() -> ({
                 IconButton(onClick = { onValueChange("") }) {
-                    Icon(MaterialSymbols.Outlined.Close, "清除搜索")
+                    Icon(OutlinedIcons.Close, "清除搜索")
                 }
             })
 

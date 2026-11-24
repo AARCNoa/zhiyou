@@ -1,11 +1,7 @@
 package com.AARCNoa.zhiyou.ui.panel
 
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Deselect
-import com.composables.icons.materialsymbols.outlined.Done_all
-import com.composables.icons.materialsymbols.outlined.Select_all
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 internal fun <T> panelMultiSelectActions(
     items: List<T>,
@@ -17,9 +13,9 @@ internal fun <T> panelMultiSelectActions(
     onSelectionChange: (Set<String>) -> Unit,
     onTerminalAction: (List<T>) -> Unit,
 ): List<PanelAction> = listOf(
-    PanelAction(MaterialSymbols.Outlined.Close, "关闭", showLabel = true, onClick = onClose),
+    PanelAction(OutlinedIcons.Close, "关闭", showLabel = true, onClick = onClose),
     PanelAction(
-        MaterialSymbols.Outlined.Select_all,
+        OutlinedIcons.Select_all,
         "全选",
         enabled = items.isNotEmpty(),
         showLabel = true,
@@ -27,7 +23,7 @@ internal fun <T> panelMultiSelectActions(
         onSelectionChange(items.mapTo(linkedSetOf(), key))
     },
     PanelAction(
-        MaterialSymbols.Outlined.Deselect,
+        OutlinedIcons.Deselect,
         "反选",
         enabled = items.isNotEmpty(),
         showLabel = true,
@@ -35,7 +31,7 @@ internal fun <T> panelMultiSelectActions(
         onSelectionChange(invertPanelSelection(selectedKeys, items, key))
     },
     PanelAction(
-        MaterialSymbols.Outlined.Done_all,
+        OutlinedIcons.Done_all,
         "连选",
         enabled = selectedKeys.size > 1,
         showLabel = true,

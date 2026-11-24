@@ -2,6 +2,7 @@ package com.AARCNoa.zhiyou.ui.content
 
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -104,7 +105,15 @@ fun OverlayHost(
             setLifecycleOwner(lifecycleOwner)
             setContent {
                 // 返回键先关覆盖层（overlay 盖在内容之上，返回键仍走 Activity 的分发器）。
-                BackHandler(enabled = dismissible) { dismiss.value() }
+                //
+                // 但宿主不一定是 ComponentActivity：微信的 Activity、以及挂在 decorView 上的
+                // overlay 都是普通 Activity，ViewTree 里没有 OnBackPressedDispatcherOwner，
+                // 这时 BackHandler 会直接抛 IllegalStateException 把进程带崩
+                // （实测：侧边栏面板里点「清空」弹确认框）。没有 owner 就不注册 ——
+                // 遮罩点击仍能关闭，只是返回键不管这一层。
+                if (LocalOnBackPressedDispatcherOwner.current != null) {
+                    BackHandler(enabled = dismissible) { dismiss.value() }
+                }
                 Box(modifier.fillMaxSize()) {
                     Scrim(
                         onDismiss = { dismiss.value() },

@@ -34,12 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Call_end
-import com.composables.icons.materialsymbols.outlined.Mic
-import com.composables.icons.materialsymbols.outlined.Mic_off
-import com.composables.icons.materialsymbols.outlined.Videocam
-import com.composables.icons.materialsymbols.outlined.Videocam_off
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.theme.ModuleTheme
 
 @Keep
@@ -235,18 +230,18 @@ class PipVoipActivity : ComponentActivity() {
                         contentColor = MaterialTheme.colorScheme.onError,
                     ),
                 ) {
-                    Icon(MaterialSymbols.Outlined.Call_end, contentDescription = "挂断")
+                    Icon(OutlinedIcons.Call_end, contentDescription = "挂断")
                 }
                 FilledIconButton(onClick = ::toggleMic, modifier = Modifier.size(48.dp)) {
                     Icon(
-                        if (micMuted) MaterialSymbols.Outlined.Mic else MaterialSymbols.Outlined.Mic_off,
+                        if (micMuted) OutlinedIcons.Mic else OutlinedIcons.Mic_off,
                         contentDescription = if (micMuted) "打开麦克风" else "关闭麦克风",
                     )
                 }
                 if (groupCall || canControl) {
                     FilledIconButton(onClick = ::toggleVideo, modifier = Modifier.size(48.dp)) {
                         Icon(
-                            if (videoEnabled) MaterialSymbols.Outlined.Videocam_off else MaterialSymbols.Outlined.Videocam,
+                            if (videoEnabled) OutlinedIcons.Videocam_off else OutlinedIcons.Videocam,
                             contentDescription = if (videoEnabled) "关闭视频" else "打开视频",
                         )
                     }

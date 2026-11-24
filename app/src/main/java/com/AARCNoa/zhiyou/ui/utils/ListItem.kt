@@ -14,7 +14,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 
 /**
- * 与 WeKit 同名 ListItem（其依赖特定 material3 版本签名的 MaterialListItem，
+ * 与旧版同名 ListItem（其依赖特定 material3 版本签名的 MaterialListItem，
  * 本模块不连带其签名，改为手写等价组合）。
  */
 @Composable

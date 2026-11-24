@@ -27,9 +27,12 @@ import de.robv.android.xposed.XposedBridge
  * 这是微信自身缺陷（栈内无任何模块代码），无法用常规 hookBefore/After 拦截——
  * 异常发生在微信自己的方法体内，构造器与 hookAfter 都接不住。
  *
- * 防御挂点：崩溃链最外层的**普通方法**——聊天页创建这个浮窗的延迟任务
- * `iq0.o.run`（8.0.80 的混淆名，Runnable；跨版本找不到就降级为只记日志）。
- * 在它上面套「替换 + invokeOriginal + try-catch」：仅当异常栈命中已知的微信自身
+ * 防御挂点：崩溃链上最外层的**普通方法**，按顺序试两个（见 [onEnable]）：
+ * 1. 延迟任务 `iq0.o.run`（Runnable）——只有部分 8.0.80 渠道包有这个类；
+ * 2. 浮窗控件自己 `NearbyLivePreviewView.m(I)V`——8.0.80 实装包里没有 `iq0.o`，实际走这条。
+ * 都找不到说明该版本没有可防御的对象，只留一行 debug，不是故障。
+ *
+ * 在挂点上套「替换 + invokeOriginal + try-catch」：仅当异常栈命中已知的微信自身
  * 崩溃（含 finder 直播预览、不含任何模块帧）时才吞掉——消息循环继续，浮窗不显示，
  * 进程不闪退；其它一切异常照常 rethrow，交给崩溃处理器记录。
  *
@@ -58,36 +61,66 @@ object ChatLivePreviewCrashGuard : SwitchFeature() {
     private const val VICTIM_PACKAGE = "com.tencent.mm.plugin.finder"
     private const val VICTIM_HINT = "nearby"
 
+    /** 预览浮窗控件：类名未混淆、跨版本稳定；崩溃栈里就是它的 `m`。 */
+    private const val PREVIEW_VIEW_CLASS =
+        "com.tencent.mm.plugin.finder.nearby.live.view.NearbyLivePreviewView"
+
     override val defaultEnabled: Boolean = true
 
     /**
-     * 该 NPE 只出现在 8.0.80+，挂点 `iq0.o` 也是 8.0.80 的混淆名。
-     * 8.0.79 上崩溃栈里的 `cn2.n0` / `pa6.n` 均不存在，等于没有可防御的对象；
-     * 这里按版本判定为「当前版本不适用」，避免每次启动刷一条「未找到 iq0.o」的告警。
+     * 该 NPE 只出现在 8.0.80 及以上；8.0.79 的崩溃栈里（`cn2.n0` / `pa6.n`）没有可挂的普通方法，
+     * 等于没有可防御的对象。按版本判定为「当前版本不适用」，避免每次启动刷一条「找不到挂点」的告警。
      */
     override val unavailableReason: String?
         get() = if (hostVersionAtLeast(8, 0, 80)) null
         else "该闪退只出现在微信 8.0.80 及以上，当前版本不需要此防御"
 
     override fun onEnable() {
+        // 挂点一：上游用的延迟任务（部分 8.0.80 渠道包有这个类）。命中就不再挂第二层。
+        if (hookDelayedTask()) return
+        // 挂点二：直接挂浮窗控件自己。类名未混淆；8.0.80（versionCode 3200）实测没有 iq0.o。
+        if (hookPreviewView()) return
+        // 两个都找不到说明这一版没有可防御的对象，不是故障：只留一行 debug，不打 W。
+        WeLogger.d(TAG, "当前微信版本没有已知的直播浮窗崩溃挂点，防御未安装")
+    }
+
+    private fun hookDelayedTask(): Boolean {
         val taskClass = runCatching {
             Class.forName("iq0.o", false, ClassLoaders.HOST)
-        }.getOrNull() ?: run {
-            WeLogger.w(TAG, "未找到 iq0.o（聊天页直播浮窗创建任务），防御不可用（微信版本变化）")
-            return
-        }
-        if (!Runnable::class.java.isAssignableFrom(taskClass)) {
-            WeLogger.w(TAG, "iq0.o 不再是 Runnable，防御不可用")
-            return
-        }
+        }.getOrNull() ?: return false
+        if (!Runnable::class.java.isAssignableFrom(taskClass)) return false
         val runMethod = runCatching {
             taskClass.getDeclaredMethod("run").apply { isAccessible = true }
-        }.getOrNull() ?: run {
-            WeLogger.w(TAG, "iq0.run 未找到，防御不可用")
-            return
-        }
+        }.getOrNull() ?: return false
+        return guardMethod(runMethod, "iq0.run")
+    }
 
-        XposedBridge.hookMethod(runMethod, object : XC_MethodReplacement() {
+    /**
+     * 直接挂 `NearbyLivePreviewView.m(I)V`。
+     *
+     * 8.0.80（versionCode 3200）的 dex 里没有 `iq0.o`，但崩溃栈最内层的普通方法就是
+     * 这个 `m` —— 它构造「附近直播」预览浮窗的整棵 UI（`w43.d5` 渲染层、`RatioLayout`、
+     * `iy2` 包下的一串监听器都在这里 new）。类名未混淆（微信自己用类名做埋点），方法名是
+     * 8.0.80 的混淆名，按「类名 + m(I)V」定位，找不到就跳过。
+     */
+    private fun hookPreviewView(): Boolean {
+        val clazz = runCatching {
+            Class.forName(PREVIEW_VIEW_CLASS, false, ClassLoaders.HOST)
+        }.getOrNull() ?: return false
+        val method = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "m" &&
+                    it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0] == Int::class.javaPrimitiveType &&
+                    it.returnType == Void.TYPE
+            }
+        }.getOrNull() ?: return false
+        return guardMethod(method, "${clazz.simpleName}.m(I)V")
+    }
+
+    /** 套「replace + invokeOriginal + try-catch」：只吞已知的微信自身崩溃，其它原样抛。 */
+    private fun guardMethod(method: java.lang.reflect.Method, label: String): Boolean = runCatching {
+        XposedBridge.hookMethod(method, object : XC_MethodReplacement() {
             override fun replaceHookedMethod(param: XC_MethodHook.MethodHookParam): Any? {
                 return try {
                     param.invokeOriginal()
@@ -104,8 +137,11 @@ object ChatLivePreviewCrashGuard : SwitchFeature() {
                 }
             }
         })
-
-        WeLogger.i(TAG, "聊天直播浮窗崩溃防御已安装（iq0.run，仅豁免该已知崩溃）")
+        WeLogger.i(TAG, "聊天直播浮窗崩溃防御已安装（$label，仅豁免该已知崩溃）")
+        true
+    }.getOrElse {
+        WeLogger.w(TAG, "hook $label 失败，防御不可用", it)
+        false
     }
 
     /** 栈里有 finder 直播预览帧、且没有任何模块帧 → 视为已知的微信自身崩溃。 */

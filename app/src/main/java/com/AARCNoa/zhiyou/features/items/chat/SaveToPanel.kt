@@ -1,9 +1,6 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
 import android.content.Context
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Download
-import com.composables.icons.materialsymbols.outlined.Folder
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
 import com.AARCNoa.zhiyou.features.api.core.models.MessageType
@@ -13,6 +10,7 @@ import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.features.items.chat.panel.RECENT_PACK_ID
 import com.AARCNoa.zhiyou.features.items.chat.panel.sticker.StickerPanelRepository
 import com.AARCNoa.zhiyou.features.items.chat.panel.voice.VoicePanelRepository
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.panel.PanelPackChoice
 import com.AARCNoa.zhiyou.ui.panel.showPanelPackPicker
 import com.AARCNoa.zhiyou.ui.utils.DownloadIcon
@@ -48,7 +46,7 @@ object SaveToPanel : SwitchFeature(), WeChatMessageContextMenuApi.IMenuItemsProv
             id = 777024,
             text = "保存到面板",
             drawable = DownloadIcon,
-            imageVector = MaterialSymbols.Outlined.Download,
+            imageVector = OutlinedIcons.Download,
             isSupported = ::isSupportedMessage,
             multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Adapted(
                 isSupported = { messages ->
@@ -102,7 +100,7 @@ object SaveToPanel : SwitchFeature(), WeChatMessageContextMenuApi.IMenuItemsProv
                 title = "选择表情包",
                 createLabel = "新建表情包",
                 itemCountLabel = { "$it 张表情" },
-                packIcon = MaterialSymbols.Outlined.Folder,
+                packIcon = OutlinedIcons.Folder,
                 packs = packs.map { PanelPackChoice(it.id, it.title, it.itemCount) },
                 onCreatePack = { name ->
                     withContext(Dispatchers.IO) { StickerPanelRepository.createPack(name) }
@@ -125,7 +123,7 @@ object SaveToPanel : SwitchFeature(), WeChatMessageContextMenuApi.IMenuItemsProv
                 title = "选择语音包",
                 createLabel = "新建语音包",
                 itemCountLabel = { "$it 条语音" },
-                packIcon = MaterialSymbols.Outlined.Folder,
+                packIcon = OutlinedIcons.Folder,
                 packs = packs.map { PanelPackChoice(it.id, it.title, it.itemCount) },
                 onCreatePack = { name ->
                     withContext(Dispatchers.IO) { VoicePanelRepository.createPack(name) }

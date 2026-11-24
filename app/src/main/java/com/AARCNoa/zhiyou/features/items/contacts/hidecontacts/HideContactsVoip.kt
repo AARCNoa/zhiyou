@@ -19,10 +19,10 @@ private const val TAG = "HideContacts.Voip"
  *
  * ```
  * push (hp5.m.L0 / hp5.t.yi)
- *   -> qq5.j.b9(...)                 mp5/q2.java:618
+ *   -> qq5.j.b9(...)                 mp5/q2.java
  *   -> voipmp.platform.v0.z(...)     -> native
  *   -> ZIDL_ibmKH7hbMB.ZIDL_FBV(...) "launchInComingCardAsync"
- *   -> qq5.j.qa(ctx, ..., username, members, isSubCall)   mp5/q2.java:1075
+ *   -> qq5.j.qa(ctx, ..., username, members, isSubCall)   mp5/q2.java
  *   -> coroutine, which forks:
  *        background -> full-screen/heads-up notification (id 41)
  *        foreground -> float card + qq5.j.Ri -> ringtone

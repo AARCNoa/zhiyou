@@ -3,7 +3,7 @@
     <string-array name="xposed_scope">
         <item>com.tencent.mm</item>
     </string-array>
-    <!-- WeKit HomeSidePanel 农历月份名 (默认配置, 语言限定 values-zh-rCN 覆盖相同值) -->
+    <!-- 侧边栏农历月份名 (默认配置, 语言限定 values-zh-rCN 覆盖相同值) -->
     <string-array name="home_side_panel_lunar_month_names">
         <item>正月</item>
         <item>二月</item>
@@ -18,7 +18,7 @@
         <item>冬月</item>
         <item>腊月</item>
     </string-array>
-    <!-- WeKit HomeSidePanel 农历日名 -->
+    <!-- 侧边栏农历日名 -->
     <string-array name="home_side_panel_lunar_day_names">
         <item>初一</item>
         <item>初二</item>

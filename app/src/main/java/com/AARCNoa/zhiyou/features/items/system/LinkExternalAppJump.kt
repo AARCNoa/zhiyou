@@ -31,9 +31,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Language
-import com.composables.icons.materialsymbols.outlined.Open_in_new
 import com.tencent.mm.ui.LauncherUI
 import de.robv.android.xposed.XC_MethodHook
 import com.AARCNoa.zhiyou.features.api.ui.WeStartActivityApi
@@ -41,6 +38,7 @@ import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
@@ -182,7 +180,7 @@ object LinkExternalAppJump : SwitchFeature(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = MaterialSymbols.Outlined.Open_in_new,
+                imageVector = OutlinedIcons.Open_in_new,
                 contentDescription = null,
                 modifier = Modifier
                     .size(40.dp)
@@ -214,7 +212,7 @@ object LinkExternalAppJump : SwitchFeature(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = MaterialSymbols.Outlined.Language,
+                imageVector = OutlinedIcons.Language,
                 contentDescription = null,
                 modifier = Modifier
                     .size(40.dp)

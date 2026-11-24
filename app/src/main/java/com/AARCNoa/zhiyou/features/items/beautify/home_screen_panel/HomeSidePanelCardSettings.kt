@@ -43,12 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Arrow_back
-import com.composables.icons.materialsymbols.outlined.Chevron_right
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.My_location
-import com.composables.icons.materialsymbols.outlined.Person_pin
 
 import com.AARCNoa.zhiyou.features.items.beautify.resolveBeautifyText
 
@@ -57,6 +51,7 @@ import com.AARCNoa.zhiyou.ui.content.m3.BaseWidget
 import com.AARCNoa.zhiyou.ui.content.m3.IntNumberPickerWidget
 import com.AARCNoa.zhiyou.ui.content.m3.SegmentedColumn
 import com.AARCNoa.zhiyou.ui.content.m3.SwitchWidget
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 @Composable
 internal fun HomeSidePanelPanelSettings(
@@ -74,12 +69,12 @@ internal fun HomeSidePanelPanelSettings(
         SegmentedColumn(contentPadding = PaddingValues(0.dp)) {
             item {
                 BaseWidget(
-                    icon = MaterialSymbols.Outlined.Edit,
+                    icon = OutlinedIcons.Edit,
                     iconPlaceholder = false,
                     title = "进入编辑模式",
                     onClick = panelState::enterEditMode,
                     trailingContent = {
-                        Icon(MaterialSymbols.Outlined.Chevron_right, contentDescription = null)
+                        Icon(OutlinedIcons.Chevron_right, contentDescription = null)
                     },
                 )
             }
@@ -169,7 +164,7 @@ internal fun HomeSidePanelWeatherSettings(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(MaterialSymbols.Outlined.My_location, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Icon(OutlinedIcons.My_location, contentDescription = null, modifier = Modifier.size(20.dp))
                     Text(
                         "自动检测",
                         maxLines = 1,
@@ -189,7 +184,7 @@ internal fun HomeSidePanelWeatherSettings(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(MaterialSymbols.Outlined.Person_pin, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Icon(OutlinedIcons.Person_pin, contentDescription = null, modifier = Modifier.size(20.dp))
                     Text(
                         "从个人资料读取",
                         maxLines = 1,
@@ -406,7 +401,7 @@ internal fun SettingsHeader(
         modifier = modifier.fillMaxWidth(),
     ) {
         IconButton(onClick = onBack) {
-            Icon(MaterialSymbols.Outlined.Arrow_back, contentDescription = "返回")
+            Icon(OutlinedIcons.Arrow_back, contentDescription = "返回")
         }
         Text(title, style = MaterialTheme.typography.titleLarge)
     }

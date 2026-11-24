@@ -71,13 +71,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Swap_vert
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.api.core.WeConversationApi
@@ -92,6 +85,7 @@ import com.AARCNoa.zhiyou.ui.content.ContactsSelector
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
@@ -366,7 +360,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                             }
                         ) {
                             Icon(
-                                imageVector = MaterialSymbols.Outlined.Add,
+                                imageVector = OutlinedIcons.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -402,7 +396,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                                     headlineContent = { Text(group.name) },
                                     trailingContent = {
                                         Icon(
-                                            imageVector = MaterialSymbols.Outlined.Settings,
+                                            imageVector = OutlinedIcons.Settings,
                                             contentDescription = "配置分组",
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -622,7 +616,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                                     text = { Text("新建") },
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = MaterialSymbols.Outlined.Add,
+                                            imageVector = OutlinedIcons.Add,
                                             contentDescription = "新建分组",
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -638,7 +632,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                                         text = { Text("编辑") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Edit,
+                                                imageVector = OutlinedIcons.Edit,
                                                 contentDescription = "编辑",
                                                 modifier = Modifier.size(20.dp)
                                             )
@@ -653,7 +647,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                                     text = { Text("排序") },
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = MaterialSymbols.Outlined.Swap_vert,
+                                            imageVector = OutlinedIcons.Swap_vert,
                                             contentDescription = "排序",
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -669,7 +663,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                                         text = { Text("删除") },
                                         leadingIcon = {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Delete,
+                                                imageVector = OutlinedIcons.Delete,
                                                 contentDescription = "删除",
                                                 modifier = Modifier.size(20.dp)
                                             )
@@ -705,7 +699,7 @@ object ConversationGrouping : ClickableFeature(), IResolveDex {
                         colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors()
                     ) {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Check,
+                            imageVector = OutlinedIcons.Check,
                             contentDescription = "保存排序",
                             modifier = Modifier.size(22.dp)
                         )

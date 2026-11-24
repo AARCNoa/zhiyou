@@ -71,11 +71,16 @@ object AutoDndAfterJoinGroup : SwitchFeature(), IResolveDex {
                 params[7] !in PRIMITIVE_TYPE_NAMES
         }
 
-        check(matches.size == 1) {
-            "expected one ChatroomMembersLogic sync method, found ${matches.size}: " +
-                matches.joinToString { it.descriptor }
+        val match = matches.singleOrNull()
+        if (match == null) {
+            WeLogger.e(
+                TAG,
+                "聊天室成员同步方法未找到或多命中（${matches.size} 个），自动免打扰不可用：" +
+                    matches.joinToString { it.descriptor },
+            )
+            return
         }
-        methodSyncChatroomMembers.setDescriptor(matches.single())
+        methodSyncChatroomMembers.setDescriptor(match)
     }
 
     override fun onEnable() {

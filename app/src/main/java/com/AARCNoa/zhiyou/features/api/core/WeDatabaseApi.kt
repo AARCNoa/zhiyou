@@ -168,9 +168,9 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
         return scale
     }
 
-    // ==== 供 h.Hchat 脚本子系统兜底使用 ====
-    // Hchat 侧在微信 8.0.79 上 resolveDatabaseApi() 解析不到 CoreStorage / SqliteDB wrapper，
-    // 导致脚本数据库、消息变更监听整体不可用。这里复用知友侧已验证的解析结果作为兜底。
+    // ==== 直接拿 SQLiteDatabase 的出口 ====
+    // 需要绕开查询封装、自己写 SQL 的调用方（例如临时通话清理假群）用这里；
+    // 与模块内部同一份已解析的 wrapper，不另开一条初始化路径。
 
     /** 已初始化的 SQLiteDatabase；未就绪返回 null。 */
     @JvmStatic
@@ -1095,7 +1095,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
 
     /**
      * 读取群聊成员同步状态（chatroom 表），供 AutoDndAfterJoinGroup 使用。
-     * WeKit 同签名；本模块用 executeQuery 实现。
+     * 与旧版同签名；本模块用 executeQuery 实现。
      */
     fun getChatroomSyncState(roomId: String): com.AARCNoa.zhiyou.features.api.core.models.ChatroomSyncStateReadResult {
         if (roomId.isEmpty()) return com.AARCNoa.zhiyou.features.api.core.models.ChatroomSyncStateReadResult.Unavailable

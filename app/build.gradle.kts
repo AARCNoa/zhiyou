@@ -28,8 +28,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         // 版本号单一数据源：CI（.github/workflows/ci.yml）直接读取此处，
         // 发版时只需在此递增 versionCode / versionName
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         // TAG 是**内部标识**：日志 tag、数据目录（/sdcard/.../WCX）、Intent extra key 都用它。
         // 改名会迁移整个数据目录并丢掉已有 dex 缓存，所以品牌改名只走 BRAND，不动 TAG。
@@ -276,12 +276,11 @@ dependencies {
     implementation(libs.aboutlibraries.core)
     implementation(libs.aboutlibraries.compose.m3)
     implementation(libs.androidx.profileinstaller)
-    // miuix 0.9.4 内置 aar（对齐 Hchat 上游 app/libs；maven 0.9.3 API 与上游代码不兼容）
+    // miuix 0.9.4 内置 aar（对齐上游 app/libs；maven 0.9.3 API 与上游代码不兼容）
     implementation(files("libs/miuix-ui-android-0.9.4.aar"))
     implementation(files("libs/miuix-core-android-0.9.4.aar"))
     implementation(files("libs/miuix-squircle-android-0.9.4.aar"))
     implementation(files("libs/miuix-preference-android-0.9.4.aar"))
-    implementation(files("libs/miuix-icons-android-0.9.4.aar"))
     implementation(files("libs/miuix-nav-android-0.9.4.aar"))
     implementation(files("libs/miuix-blur-android-0.9.4.aar"))
     implementation(files("libs/miuix-shader-android-0.9.4.aar"))
@@ -291,8 +290,6 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.coil.network.okhttp)
 
-    implementation(libs.composablehorizons.material.symbols.filled)
-    implementation(libs.composablehorizons.material.symbols.outlined)
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
 

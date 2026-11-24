@@ -124,9 +124,13 @@ object WeSettingsInjector : ApiFeature(), IResolveDex, WeChatInputBarApi.IInputB
 
     @SuppressLint("NonUniqueDexKitData")
     override fun resolveDex(dexKit: DexKitBridge) {
+        // 零命中 / 多命中都只让入口降级：抛异常会中断整轮 resolveDex，其它锚点一起装不上。
         val prefClass = dexKit.findClass {
             matcher { className = PREFERENCE_CLASS_NAME }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "Preference 类未找到或多命中，设置入口不可用")
+            return
+        }
 
         methodSetKey.find(dexKit, allowMultiple = true) {
             searchPackages("com.tencent.mm.ui.base.preference")
@@ -358,7 +362,8 @@ object WeSettingsInjector : ApiFeature(), IResolveDex, WeChatInputBarApi.IInputB
         )
 
         settingsManager.createItem {
-            key = "SettingGroup_Main_WeKitTest1"
+            // key 只在本次注入内用于标识这个设置组，微信不持久化，改名不影响已有配置
+            key = "SettingGroup_Main_Module1"
             title = "${BuildConfig.BRAND} 设置"
             level = 1
             groupTitle = "插件"
@@ -409,14 +414,8 @@ object WeSettingsInjector : ApiFeature(), IResolveDex, WeChatInputBarApi.IInputB
 
     @Suppress("NOTHING_TO_INLINE")
     fun openSettingsDialog(context: Context) {
-        // Bug Fix (v201): 对齐上游 WeKit 的最简 Intent 启动方式。
-        // 配合 WeLauncher.init() 中 ActivityProxy.init() 注入的 IActivityManager /
-        // Instrumentation / Handler.Callback 钩子，模块 Activity 会被代理到
-        // WeChatSplashActivity 中转并最终通过 setClassName 启动真实 Activity。
-        // ActivityProxy.ActProxyMgr.isModuleProxyActivity() 通过
-        //   className.startsWith(PackageNames.MODULE)
-        // 判定模块 Activity 并走代理路由；manifest 中 SettingsActivity
-        // 已声明 exported="true"，因此经代理路由后能正常拉起。
+        // 最简 Intent 即可：模块 Activity 由 ActivityProxy 接管、代理到微信进程启动。
+        // 不要额外 setPackage 或换 className —— 代理按 component.className 判定，改了就路由不到。
         try {
             context.startActivity(Intent(context, SettingsActivity::class.java))
         } catch (e: Throwable) {

@@ -21,15 +21,10 @@ object WeProto {
         encodeDefaults = true
     }
 
-    inline fun <reified T> encode(value: T): ByteArray {
-        // TODO: pre-process protobuf objects here
-        return protoBuf.encodeToByteArray(value)
-    }
+    inline fun <reified T> encode(value: T): ByteArray = protoBuf.encodeToByteArray(value)
 
-    inline fun <reified T> encodeWithDefaults(value: T): ByteArray {
-        // TODO: pre-process protobuf objects here
-        return protoBufWithDefaults.encodeToByteArray(value)
-    }
+    inline fun <reified T> encodeWithDefaults(value: T): ByteArray =
+        protoBufWithDefaults.encodeToByteArray(value)
 
     inline fun <reified T> decode(bytes: ByteArray): T = protoBuf.decodeFromByteArray(bytes)
 }

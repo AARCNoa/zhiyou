@@ -2,6 +2,7 @@ package com.AARCNoa.zhiyou.activity.settings
 
 import com.AARCNoa.zhiyou.features.api.core.WeConversationApi
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
+import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.features.items.contacts.HideContacts
 
 /**
@@ -117,21 +118,32 @@ private fun anchorDiag(): List<DiagItem> {
     }
 
     // DexKit 解析状态：判定「开关开了但 Hook 没装上」卡在哪一步。
+    //
+    // 只取「密友功能」分类下的功能：名字里带「联系人 / 隐藏」的功能不止密友那几个，
+    // 按名字模糊匹配会把「自动同意好友申请」这类别处的锚点也算进密友诊断。
+    // 判定口径与自检页一致——已登记「旧路径被新实现替代」、或微信整体移除了实现的
+    // 锚点，解析不到属于预期，不算异常（否则 8.0.80 上会长期挂着一条红字）。
     val anchors = runCatching {
-        ModuleDiagnostics.anchors { feature, key ->
-            feature.contains("隐藏") || feature.contains("联系人") || feature.contains("密友") ||
-                key.contains("contact", true) || key.contains("hide", true)
+        ModuleDiagnostics.anchors { _, _, categories ->
+            SwitchFeature.CATEGORY_WITH_MASTER_SWITCH in categories
         }
     }.getOrDefault(emptyList())
     if (anchors.isNotEmpty()) {
         val okCount = anchors.count { it.resolved }
-        val bad = anchors.filterNot { it.resolved }.joinToString("、") { it.key }
+        val pending = anchors.filter { it.needsAdaptation() }
+        val explained = anchors.size - okCount - pending.size
         out += DiagItem(
             label = "DexKit 锚点",
-            value = "$okCount/${anchors.size}",
-            ok = okCount == anchors.size,
-            detail = if (okCount == anchors.size) "隐藏联系人相关功能的 Dex 锚点全部解析成功。"
-            else "未解析：$bad。这些锚点即使功能开关是开的，对应隐藏/拦截也不会生效。",
+            value = if (pending.isEmpty()) "全部可用" else "$okCount/${anchors.size}",
+            ok = pending.isEmpty(),
+            detail = when {
+                pending.isNotEmpty() ->
+                    "未解析：${pending.joinToString("、") { it.key }}。" +
+                        "这些锚点即使功能开关是开的，对应隐藏/拦截也不会生效。"
+                explained > 0 ->
+                    "相关锚点全部可用；另有 $explained 个旧路径锚点在当前版本已由新实现覆盖，不影响功能。"
+                else -> "隐藏联系人相关功能的 Dex 锚点全部解析成功。"
+            },
         )
     }
     return out

@@ -73,21 +73,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Drag_handle
-import com.composables.icons.materialsymbols.outlinedfilled.Add
-import com.composables.icons.materialsymbols.outlinedfilled.Bookmark
-import com.composables.icons.materialsymbols.outlinedfilled.Camera
-import com.composables.icons.materialsymbols.outlinedfilled.Cancel
-import com.composables.icons.materialsymbols.outlinedfilled.Check_circle
-import com.composables.icons.materialsymbols.outlinedfilled.Extension
-import com.composables.icons.materialsymbols.outlinedfilled.Favorite
-import com.composables.icons.materialsymbols.outlinedfilled.Movie
-import com.composables.icons.materialsymbols.outlinedfilled.Qr_code_scanner
-import com.composables.icons.materialsymbols.outlinedfilled.Settings
-import com.composables.icons.materialsymbols.outlinedfilled.Update
-import com.composables.icons.materialsymbols.outlinedfilled.Wallet
 import dev.ujhhgtg.reflekt.firstMethod
 import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.activity.settings.SettingsActivity
@@ -100,6 +85,8 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.rootView
@@ -138,7 +125,7 @@ object AddMainScreenFab : ClickableFeature() {
      * 会话列表是否可见（决定 FAB 是否显示）。
      *
      * ⚠️ 判定失败一律按「可见」处理：FAB 是入口，**宁可多显示，也绝不能因为一个内部
-     * View 判定把它长期藏起来**。实测反馈「FAB 用久了会消失，强行停止重进才回来」，
+     * View 判定把它长期藏起来**。FAB 用久后消失、强行停止重进才回来，就是这个原因，
      * 就是某次判定为 false 之后再也回不到 true（视图树监听挂在旧的 decorView 上会失效）。
      */
     private fun checkConvListVisible(activity: Activity): Boolean = try {
@@ -174,17 +161,17 @@ object AddMainScreenFab : ClickableFeature() {
     // 可选图标池映射
     private val iconPool by lazy {
         mapOf(
-            "Qr_code_scanner" to MaterialSymbols.OutlinedFilled.Qr_code_scanner,
-            "Camera" to MaterialSymbols.OutlinedFilled.Camera,
-            "Wallet" to MaterialSymbols.OutlinedFilled.Wallet,
-            "Movie" to MaterialSymbols.OutlinedFilled.Movie,
-            "Settings" to MaterialSymbols.OutlinedFilled.Settings,
-            "Extension" to MaterialSymbols.OutlinedFilled.Extension,
-            "Cancel" to MaterialSymbols.OutlinedFilled.Cancel,
-            "Update" to MaterialSymbols.OutlinedFilled.Update,
-            "Bookmark" to MaterialSymbols.OutlinedFilled.Bookmark,
-            "Favorite" to MaterialSymbols.OutlinedFilled.Favorite,
-            "Check_circle" to MaterialSymbols.OutlinedFilled.Check_circle
+            "Qr_code_scanner" to FilledIcons.Qr_code_scanner,
+            "Camera" to FilledIcons.Camera,
+            "Wallet" to FilledIcons.Wallet,
+            "Movie" to FilledIcons.Movie,
+            "Settings" to FilledIcons.Settings,
+            "Extension" to FilledIcons.Extension,
+            "Cancel" to FilledIcons.Cancel,
+            "Update" to FilledIcons.Update,
+            "Bookmark" to FilledIcons.Bookmark,
+            "Favorite" to FilledIcons.Favorite,
+            "Check_circle" to FilledIcons.Check_circle
         )
     }
 
@@ -322,7 +309,7 @@ object AddMainScreenFab : ClickableFeature() {
             val menuItems = mutableMapOf<String, Pair<ImageVector, () -> Unit>>()
 
             configList.forEach { item ->
-                val icon = iconPool[item.iconName] ?: MaterialSymbols.OutlinedFilled.Add
+                val icon = iconPool[item.iconName] ?: FilledIcons.Add
                 val action: () -> Unit = when (item.type) {
                     FabType.START_ACTIVITY -> {
                         { item.targetActivity?.let {
@@ -348,10 +335,7 @@ object AddMainScreenFab : ClickableFeature() {
                     FabType.MODULE_SETTINGS -> {
                         {
                             try {
-                                // Bug Fix (v201): 对齐 WeKit 上游的最简 Intent 启动方式。
-                                // 之前 v196 加的 setPackage(PackageNames.MODULE) 实际上是无效的，
-                                // 真正的代理路由依赖 WeLauncher.init() 中的 ActivityProxy.init()
-                                // 钩子 IActivityManager.startActivity()。去掉 setPackage 即可。
+                                // 与设置页同一套：最简 Intent，路由交给 ActivityProxy。
                                 activity.startActivity(Intent(activity, SettingsActivity::class.java))
                                 WeLogger.i(TAG, "MODULE_SETTINGS: 启动模块设置 Activity")
                             } catch (e: Throwable) {
@@ -475,7 +459,7 @@ object AddMainScreenFab : ClickableFeature() {
                                         ) {
                                             val rotation by animateFloatAsState(if (expanded) 45f else 0f)
                                             Icon(
-                                                MaterialSymbols.OutlinedFilled.Add,
+                                                FilledIcons.Add,
                                                 contentDescription = null,
                                                 tint = activeColor,
                                                 modifier = Modifier.rotate(rotation)
@@ -734,7 +718,7 @@ object AddMainScreenFab : ClickableFeature() {
                                     }
                                 }
                             ) {
-                                Icon(MaterialSymbols.OutlinedFilled.Add, contentDescription = null)
+                                Icon(FilledIcons.Add, contentDescription = null)
                                 Text("添加")
                             }
                         }
@@ -841,13 +825,13 @@ object AddMainScreenFab : ClickableFeature() {
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Drag_handle,
+                                                imageVector = OutlinedIcons.Drag_handle,
                                                 contentDescription = "拖动以调整顺序",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }
                                         Icon(
-                                            imageVector = iconPool[item.iconName] ?: MaterialSymbols.OutlinedFilled.Add,
+                                            imageVector = iconPool[item.iconName] ?: FilledIcons.Add,
                                             contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
@@ -873,7 +857,7 @@ object AddMainScreenFab : ClickableFeature() {
                                             },
                                         ) {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Delete,
+                                                imageVector = OutlinedIcons.Delete,
                                                 contentDescription = "删除 ${item.name}",
                                                 tint = MaterialTheme.colorScheme.error,
                                             )

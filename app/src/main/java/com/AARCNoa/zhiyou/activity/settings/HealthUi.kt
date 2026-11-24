@@ -22,11 +22,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * 模块设置 / 自检页共用的页面骨架。
+ * 模块设置 / 自检页共用的页面骨架：标题栏 + 返回 + 状态栏内边距。
  *
- * 原先复用 `h.Hchat.ui.miuix` 的同名实现，脚本子系统下线后按原视觉重写为自包含版本。
- * 分割线已统一走 [com.AARCNoa.zhiyou.ui.style.SoftDivider]；只服务已删除的密友诊断页的
- * SettingsCard / ActionRow 一并移除。
+ * 分割线统一走 [com.AARCNoa.zhiyou.ui.style.SoftDivider]。
  */
 
 @Composable

@@ -24,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.ListItem
 import com.AARCNoa.zhiyou.utils.WeLogger
 import androidx.compose.material3.MaterialTheme
@@ -43,9 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Chevron_right
 
 import kotlinx.coroutines.delay
 
@@ -323,7 +321,7 @@ internal fun HomeSidePanelAddActionItem(
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Icon(
-                        MaterialSymbols.Outlined.Add,
+                        OutlinedIcons.Add,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
@@ -346,7 +344,7 @@ internal fun HomeSidePanelAddActionItem(
             ListItem(
                 leadingContent = {
                     Icon(
-                        MaterialSymbols.Outlined.Add,
+                        OutlinedIcons.Add,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
@@ -464,7 +462,7 @@ private fun HomeSidePanelActionItem(
                     null
                 } else {
                     {
-                        Icon(MaterialSymbols.Outlined.Chevron_right, contentDescription = null)
+                        Icon(OutlinedIcons.Chevron_right, contentDescription = null)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

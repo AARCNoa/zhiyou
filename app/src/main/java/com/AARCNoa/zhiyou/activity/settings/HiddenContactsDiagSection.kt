@@ -25,11 +25,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.AARCNoa.zhiyou.BuildConfig
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
 import com.AARCNoa.zhiyou.utils.android.showToast
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Expand_more
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,7 +85,7 @@ internal fun HiddenContactsDiagSection(modifier: Modifier = Modifier) {
                 color = statusColor,
             )
             Icon(
-                imageVector = MaterialSymbols.Outlined.Expand_more,
+                imageVector = OutlinedIcons.Expand_more,
                 contentDescription = if (expanded) "收起" else "展开",
                 tint = WxPalette.textTertiary(),
                 modifier = Modifier

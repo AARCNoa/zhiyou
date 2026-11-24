@@ -53,15 +53,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Contacts
-import com.composables.icons.materialsymbols.outlined.Explore
-import com.composables.icons.materialsymbols.outlined.Home
-import com.composables.icons.materialsymbols.outlined.Person
-import com.composables.icons.materialsymbols.outlinedfilled.Contacts
-import com.composables.icons.materialsymbols.outlinedfilled.Explore
-import com.composables.icons.materialsymbols.outlinedfilled.Home
-import com.composables.icons.materialsymbols.outlinedfilled.Person
 import dev.ujhhgtg.reflekt.firstMethod
 import dev.ujhhgtg.reflekt.reflekt
 import dev.ujhhgtg.reflekt.utils.toClass
@@ -79,6 +70,8 @@ import com.AARCNoa.zhiyou.ui.content.FloatingBottomBarDefaults
 import com.AARCNoa.zhiyou.ui.content.FloatingBottomBarItem
 import com.AARCNoa.zhiyou.ui.content.TextButton
 import com.AARCNoa.zhiyou.ui.content.rememberViewBackdrop
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.InjectedUiTheme
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
@@ -98,10 +91,10 @@ object ReplaceNavigationBar : ClickableFeature(), IResolveDex {
 
     @Stable
     private val TAB_ITEMS = listOf(
-        NavItem(MaterialSymbols.Outlined.Home, MaterialSymbols.OutlinedFilled.Home, "主页"),
-        NavItem(MaterialSymbols.Outlined.Contacts, MaterialSymbols.OutlinedFilled.Contacts, "通讯录"),
-        NavItem(MaterialSymbols.Outlined.Explore, MaterialSymbols.OutlinedFilled.Explore, "发现"),
-        NavItem(MaterialSymbols.Outlined.Person, MaterialSymbols.OutlinedFilled.Person, "我")
+        NavItem(OutlinedIcons.Home, FilledIcons.Home, "主页"),
+        NavItem(OutlinedIcons.Contacts, FilledIcons.Contacts, "通讯录"),
+        NavItem(OutlinedIcons.Explore, FilledIcons.Explore, "发现"),
+        NavItem(OutlinedIcons.Person, FilledIcons.Person, "我")
     )
 
     private var useFloating by prefOption("nav_bar_use_floating", false)

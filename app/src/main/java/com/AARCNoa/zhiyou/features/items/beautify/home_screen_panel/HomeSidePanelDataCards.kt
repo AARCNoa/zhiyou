@@ -44,36 +44,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Air
-import com.composables.icons.materialsymbols.outlined.Cloud
-import com.composables.icons.materialsymbols.outlined.Cloudy_snowing
-import com.composables.icons.materialsymbols.outlined.Cyclone
-import com.composables.icons.materialsymbols.outlined.Device_thermostat
-import com.composables.icons.materialsymbols.outlined.Foggy
-import com.composables.icons.materialsymbols.outlined.Format_quote
-import com.composables.icons.materialsymbols.outlined.Grain
-import com.composables.icons.materialsymbols.outlined.Humidity_percentage
-import com.composables.icons.materialsymbols.outlined.Location_on
-import com.composables.icons.materialsymbols.outlined.Partly_cloudy_day
-import com.composables.icons.materialsymbols.outlined.Qr_code_scanner
-import com.composables.icons.materialsymbols.outlined.Question_mark
-import com.composables.icons.materialsymbols.outlined.Rainy
-import com.composables.icons.materialsymbols.outlined.Rainy_heavy
-import com.composables.icons.materialsymbols.outlined.Rainy_light
-import com.composables.icons.materialsymbols.outlined.Rainy_snow
-import com.composables.icons.materialsymbols.outlined.Snowing
-import com.composables.icons.materialsymbols.outlined.Snowing_heavy
-import com.composables.icons.materialsymbols.outlined.Storm
-import com.composables.icons.materialsymbols.outlined.Sunny
-import com.composables.icons.materialsymbols.outlined.Sunny_snowing
-import com.composables.icons.materialsymbols.outlined.Thunderstorm
-import com.composables.icons.materialsymbols.outlined.Tornado
-import com.composables.icons.materialsymbols.outlined.Wallet
-import com.composables.icons.materialsymbols.outlined.Weather_hail
-import com.composables.icons.materialsymbols.outlined.Weather_snowy
 
 import com.AARCNoa.zhiyou.features.items.beautify.resolveBeautifyText
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -221,7 +194,7 @@ internal fun HomeSidePanelWeatherCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    MaterialSymbols.Outlined.Location_on,
+                    OutlinedIcons.Location_on,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = contentColor,
@@ -331,7 +304,7 @@ internal fun HomeSidePanelWeatherCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         HomeSidePanelWeatherMetric(
-                            icon = MaterialSymbols.Outlined.Device_thermostat,
+                            icon = OutlinedIcons.Device_thermostat,
                             value = snapshot?.let { "${it.high}° / ${it.low}°" } ?: "-- / --",
                             label = "最高 / 最低",
                             modifier = Modifier.weight(1f),
@@ -343,7 +316,7 @@ internal fun HomeSidePanelWeatherCard(
                             color = contentColor.copy(alpha = 0.12f),
                         )
                         HomeSidePanelWeatherMetric(
-                            icon = MaterialSymbols.Outlined.Humidity_percentage,
+                            icon = OutlinedIcons.Humidity_percentage,
                             value = snapshot?.let { "${it.humidity}%" } ?: "--",
                             label = "湿度",
                             modifier = Modifier.weight(1f),
@@ -355,7 +328,7 @@ internal fun HomeSidePanelWeatherCard(
                             color = contentColor.copy(alpha = 0.12f),
                         )
                         HomeSidePanelWeatherMetric(
-                            icon = MaterialSymbols.Outlined.Air,
+                            icon = OutlinedIcons.Air,
                             value = snapshot?.let { "${it.windSpeed} km/h" } ?: "--",
                             label = "风速",
                             modifier = Modifier.weight(1f),
@@ -430,7 +403,7 @@ internal fun HomeSidePanelWalletCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    MaterialSymbols.Outlined.Wallet,
+                    OutlinedIcons.Wallet,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                     tint = contentColor,
@@ -466,7 +439,7 @@ internal fun HomeSidePanelWalletCard(
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                 ) {
-                    Icon(MaterialSymbols.Outlined.Qr_code_scanner, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(OutlinedIcons.Qr_code_scanner, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("扫一扫", modifier = Modifier.padding(start = 7.dp), maxLines = 1)
                 }
                 Button(
@@ -481,7 +454,7 @@ internal fun HomeSidePanelWalletCard(
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                 ) {
-                    Icon(MaterialSymbols.Outlined.Wallet, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(OutlinedIcons.Wallet, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("付款码", modifier = Modifier.padding(start = 7.dp), maxLines = 1)
                 }
             }
@@ -538,7 +511,7 @@ internal fun HomeSidePanelHitokotoCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(MaterialSymbols.Outlined.Format_quote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(OutlinedIcons.Format_quote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Text(
                     "一言",
                     modifier = Modifier.padding(start = 8.dp),
@@ -661,31 +634,31 @@ private fun greetingResForHour(hour: Int): String = when (hour) {
 }
 
 private fun weatherIcon(code: String): ImageVector = when (weatherIconKind(code)) {
-    WeatherIconKind.SUNNY -> MaterialSymbols.Outlined.Sunny
-    WeatherIconKind.PARTLY_CLOUDY -> MaterialSymbols.Outlined.Partly_cloudy_day
-    WeatherIconKind.OVERCAST -> MaterialSymbols.Outlined.Cloud
-    WeatherIconKind.SHOWER -> MaterialSymbols.Outlined.Rainy
-    WeatherIconKind.THUNDERSTORM -> MaterialSymbols.Outlined.Thunderstorm
-    WeatherIconKind.HAIL -> MaterialSymbols.Outlined.Weather_hail
-    WeatherIconKind.SLEET -> MaterialSymbols.Outlined.Rainy_snow
-    WeatherIconKind.LIGHT_RAIN -> MaterialSymbols.Outlined.Rainy_light
-    WeatherIconKind.RAIN -> MaterialSymbols.Outlined.Rainy
-    WeatherIconKind.HEAVY_RAIN -> MaterialSymbols.Outlined.Rainy_heavy
-    WeatherIconKind.RAINSTORM -> MaterialSymbols.Outlined.Storm
-    WeatherIconKind.SNOW_SHOWER -> MaterialSymbols.Outlined.Sunny_snowing
-    WeatherIconKind.LIGHT_SNOW -> MaterialSymbols.Outlined.Snowing
-    WeatherIconKind.SNOW -> MaterialSymbols.Outlined.Weather_snowy
-    WeatherIconKind.HEAVY_SNOW -> MaterialSymbols.Outlined.Snowing_heavy
-    WeatherIconKind.BLIZZARD -> MaterialSymbols.Outlined.Cloudy_snowing
-    WeatherIconKind.FOG -> MaterialSymbols.Outlined.Foggy
-    WeatherIconKind.FREEZING_RAIN -> MaterialSymbols.Outlined.Rainy_snow
-    WeatherIconKind.DUST_STORM -> MaterialSymbols.Outlined.Storm
-    WeatherIconKind.DUST -> MaterialSymbols.Outlined.Grain
-    WeatherIconKind.SAND -> MaterialSymbols.Outlined.Grain
-    WeatherIconKind.SQUALL -> MaterialSymbols.Outlined.Cyclone
-    WeatherIconKind.TORNADO -> MaterialSymbols.Outlined.Tornado
-    WeatherIconKind.HAZE -> MaterialSymbols.Outlined.Air
-    WeatherIconKind.UNKNOWN -> MaterialSymbols.Outlined.Question_mark
+    WeatherIconKind.SUNNY -> OutlinedIcons.Sunny
+    WeatherIconKind.PARTLY_CLOUDY -> OutlinedIcons.Partly_cloudy_day
+    WeatherIconKind.OVERCAST -> OutlinedIcons.Cloud
+    WeatherIconKind.SHOWER -> OutlinedIcons.Rainy
+    WeatherIconKind.THUNDERSTORM -> OutlinedIcons.Thunderstorm
+    WeatherIconKind.HAIL -> OutlinedIcons.Weather_hail
+    WeatherIconKind.SLEET -> OutlinedIcons.Rainy_snow
+    WeatherIconKind.LIGHT_RAIN -> OutlinedIcons.Rainy_light
+    WeatherIconKind.RAIN -> OutlinedIcons.Rainy
+    WeatherIconKind.HEAVY_RAIN -> OutlinedIcons.Rainy_heavy
+    WeatherIconKind.RAINSTORM -> OutlinedIcons.Storm
+    WeatherIconKind.SNOW_SHOWER -> OutlinedIcons.Sunny_snowing
+    WeatherIconKind.LIGHT_SNOW -> OutlinedIcons.Snowing
+    WeatherIconKind.SNOW -> OutlinedIcons.Weather_snowy
+    WeatherIconKind.HEAVY_SNOW -> OutlinedIcons.Snowing_heavy
+    WeatherIconKind.BLIZZARD -> OutlinedIcons.Cloudy_snowing
+    WeatherIconKind.FOG -> OutlinedIcons.Foggy
+    WeatherIconKind.FREEZING_RAIN -> OutlinedIcons.Rainy_snow
+    WeatherIconKind.DUST_STORM -> OutlinedIcons.Storm
+    WeatherIconKind.DUST -> OutlinedIcons.Grain
+    WeatherIconKind.SAND -> OutlinedIcons.Grain
+    WeatherIconKind.SQUALL -> OutlinedIcons.Cyclone
+    WeatherIconKind.TORNADO -> OutlinedIcons.Tornado
+    WeatherIconKind.HAZE -> OutlinedIcons.Air
+    WeatherIconKind.UNKNOWN -> OutlinedIcons.Question_mark
 }
 
 private fun weatherDescriptionRes(code: String): String = when (code.toIntOrNull()) {

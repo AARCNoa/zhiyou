@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 
 /**
- * 与 WeKit 同名结构（BeautifyText 消息模型）。原版本依赖多语言框架，
+ * 与旧版同名结构（BeautifyText 消息模型）。原版本依赖多语言框架，
  * 本模块简化为：Resource 直接用标准 Context.getString 解析。
  */
 internal sealed interface BeautifyText {

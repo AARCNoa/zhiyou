@@ -3,8 +3,6 @@ package com.AARCNoa.zhiyou.features.items.chat
 import android.content.Context
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Edit
 import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
@@ -13,6 +11,7 @@ import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.api.ui.WeCurrentConversationApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.EditIcon
 import com.AARCNoa.zhiyou.utils.android.getSystemService
 import com.AARCNoa.zhiyou.utils.now
@@ -37,7 +36,7 @@ object QuickRevokeAndEdit : SwitchFeature(), WeChatMessageContextMenuApi.IMenuIt
     override fun getMenuItems(): List<WeChatMessageContextMenuApi.MenuItem> {
         return listOf(
             WeChatMessageContextMenuApi.MenuItem(
-                777016, "编辑", EditIcon, MaterialSymbols.Outlined.Edit,
+                777016, "编辑", EditIcon, OutlinedIcons.Edit,
                 isSupported = { isSupported(it) },
                 // revokes then loads one message's text into the input box; single-message only
                 multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Unsupported

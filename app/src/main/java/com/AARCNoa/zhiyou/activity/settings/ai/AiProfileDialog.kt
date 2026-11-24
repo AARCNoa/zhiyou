@@ -61,6 +61,7 @@ import com.AARCNoa.zhiyou.ai.AiProfileInitializer
 import com.AARCNoa.zhiyou.ai.AiProfileLimits
 import com.AARCNoa.zhiyou.ai.AiProfileState
 import com.AARCNoa.zhiyou.ai.AiProfileStore
+import com.AARCNoa.zhiyou.ai.displayNameOrId
 import com.AARCNoa.zhiyou.ai.AiPrompts
 import com.AARCNoa.zhiyou.ai.AiTokens
 import com.AARCNoa.zhiyou.ai.AiTools
@@ -173,9 +174,8 @@ internal fun AiProfileDialog(
         if (page != 0) page = 0 else onDismiss()
     }
 
-    // 有未处理的提案就摆到面前。只跳一次：用户按返回说明想先看看别的，不能每次回到概览
-    // 都被弹回去。不设时限 —— 多个好友连着审查时，用户往往是过一阵才逐个回来处理，
-    // 放着不处理就一直留着（提案页上有生成时间，能分辨是哪一次审查的）。
+    // 有未处理的提案时自动切到提案页（第 4 页）。每个提案只跳一次：记下 createdAt，
+    // 之后回到概览不再重跳；提案本身不设过期，页面上带生成时间。
     LaunchedEffect(profile?.pendingAudit?.createdAt, profile?.busy) {
         val plan = profile?.pendingAudit ?: return@LaunchedEffect
         if (plan.isEmpty || profile?.busy == true) return@LaunchedEffect
@@ -530,18 +530,14 @@ private fun ResultBanner(change: ProfileChange, onClick: () -> Unit) {
     }
 }
 
-/** 备注优先，其次昵称，最后 wxId；管理弹窗与列表的显示口径一致。 */
-private fun displayName(profile: AiProfile): String =
-    profile.remark.ifBlank { profile.nickname.ifBlank { profile.wxId } }
-
 @Composable
 private fun ProfileHeader(profile: AiProfile) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AiAvatar(model = profile.avatarUrl, name = displayName(profile), size = 48)
+        AiAvatar(model = profile.avatarUrl, name = profile.displayNameOrId, size = 48)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = displayName(profile),
+                text = profile.displayNameOrId,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
                 color = WxPalette.textPrimary(),
@@ -1601,7 +1597,7 @@ private fun GoalEditor(profile: AiProfile, onSave: (ChatGoal) -> Unit) {
                 Box(
                     Modifier
                         .clip(CircleShape)
-                        .background(if (selected) WxPalette.primarySoft() else WxPalette.insetSurface())
+                        .background(if (selected) WxPalette.selectionSurface() else WxPalette.insetSurface())
                         .clickable { relation = if (selected) "" else item }
                         .padding(horizontal = 14.dp, vertical = 6.dp),
                 ) {

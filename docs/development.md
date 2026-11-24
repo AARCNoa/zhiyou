@@ -12,7 +12,7 @@
 
 ```bash
 ./gradlew :app:assembleLegacyDebug     # 日常迭代（debug 签名）
-./gradlew :app:assembleLegacyRelease   # R8 压缩，约 12~15 分钟（8G 内存机器更慢）
+./gradlew :app:assembleLegacyRelease   # R8 压缩，约 15~25 分钟
 ```
 
 | 变体 | 入口 | 适用 |
@@ -29,8 +29,11 @@ app/build/outputs/apk/legacy/release/app-legacy-arm64-v8a-release-unsigned.apk
 
 ## 版本与发布
 
-- `versionCode` / `versionName` 在 `app/build.gradle.kts` **手工维护**（当前 `1` / `"1.0"`），
-  发版只改这两行。不再有 git 派生版本、构建时间戳或更新检查。
+- `versionCode` / `versionName` 在 `app/build.gradle.kts` **手工维护**（当前 `2` / `"1.1"`），
+  发版只改这两行，`versionCode` 只能加不能减。
+- 应用内更新读仓库根的 `update.json`：**每次发版必须同步它的 `versionCode` 与下载地址**，
+  否则客户端收不到提示。发版时按顺序改三处：`build.gradle.kts` 的版本号 → `update.json` 的
+  `versionCode`/`versionName`/下载地址 → 提交并推送；清单不更新，客户端就一直认为没有新版。
 - `BuildConfig.BRAND` 是对外显示名（取「知友」），标题、设置入口、关于页一律用它。
 - `BuildConfig.TAG` 固定 `WCX`，**不要改**：日志目录 `/sdcard/Android/data/<宿主>/WCX/`、
   MMKV 文件名与 Intent key 都依赖它。改名会迁移数据目录并丢掉 dex 缓存。
@@ -49,5 +52,3 @@ bash scripts/install-apk.sh path/to/xxx.apk        # 指定包
 - 必须装完再 force-stop 一次，否则新进程会用旧 APK 路径加载 `.so`；
 - 日志：`/sdcard/Android/data/<宿主包名>/WCX/logs/wcx-YYYY-MM-DD.log`；
 - `logcat -c` 会清掉现场，非必要不清。
-
-## 代码约定

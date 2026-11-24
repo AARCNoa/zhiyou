@@ -1,7 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Forward
 import com.AARCNoa.zhiyou.features.api.core.WeDatabaseApi
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
 import com.AARCNoa.zhiyou.features.api.core.WeServiceApi
@@ -11,6 +9,7 @@ import com.AARCNoa.zhiyou.features.api.ui.WeChatMessageContextMenuApi
 import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.ui.content.ContactsSelector
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.ForwardIcon
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.AudioUtils
@@ -58,7 +57,7 @@ object ForwardMessages : SwitchFeature(),
                 777010,
                 "转发",
                 ForwardIcon,
-                MaterialSymbols.Outlined.Forward,
+                OutlinedIcons.Forward,
                 isSupported = { true },
                 // forward every selected message to every chosen contact
                 multiSelect = WeChatMessageContextMenuApi.MultiSelectSupport.Adapted(

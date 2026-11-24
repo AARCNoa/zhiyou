@@ -1,7 +1,7 @@
 package com.AARCNoa.zhiyou.constants
 
 object WeChatVersions {
-    // Read from the supplied 微信 8.0.79 APK manifest (package com.tencent.mm).
+    // 微信 APK manifest 里的 versionCode（package com.tencent.mm），按版本号升序维护。
     const val MM_8_0_79 = 3200
     const val MM_8_0_76 = 3180
     const val MM_8_0_72 = 3100

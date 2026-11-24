@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -48,19 +48,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Bug_report
 import com.AARCNoa.zhiyou.activity.settings.CONTENT_BOTTOM_INSET
 import com.AARCNoa.zhiyou.ai.AiLetterIndex
 import com.AARCNoa.zhiyou.ai.AiProfileState
 import com.AARCNoa.zhiyou.BuildConfig
 import com.AARCNoa.zhiyou.ai.AiProfileStore
+import com.AARCNoa.zhiyou.ai.displayNameOrId
 import com.AARCNoa.zhiyou.ai.group.GroupDigestScheduler
 import com.AARCNoa.zhiyou.ai.group.GroupDigestStore
 import com.AARCNoa.zhiyou.ai.group.GroupSummary
 import com.AARCNoa.zhiyou.ai.AiProfileSummary
 import com.AARCNoa.zhiyou.features.ai.AiConfig
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.SoftCard
 import com.AARCNoa.zhiyou.ui.content.ScrimDialog
 import com.AARCNoa.zhiyou.ui.style.WxPalette
@@ -281,14 +280,14 @@ private fun AiHeader(
         // 顺序：提示词（仅 debug）在左，添加在右。
         if (onPrompts != null) {
             AiIconPill(
-                icon = MaterialSymbols.Outlined.Bug_report,
+                icon = OutlinedIcons.Bug_report,
                 text = "提示词",
                 onClick = onPrompts,
             )
         }
         if (tab == 0 || tab == 1) {
             AiIconPill(
-                icon = MaterialSymbols.Outlined.Add,
+                icon = OutlinedIcons.Add,
                 text = if (tab == 1) "添加群" else "添加",
                 onClick = onAdd,
             )
@@ -301,7 +300,9 @@ private fun SegmentPill(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(if (selected) WxPalette.primarySoft() else WxPalette.insetSurface())
+            // 只有选中项有底圈（导航栏同款灰）；未选中透明 —— 之前用 insetSurface，
+            // 深色下它比页面亮一档，三个未选中项看起来都像被选中。
+            .background(if (selected) WxPalette.selectionSurface() else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
@@ -472,11 +473,11 @@ private fun FriendRow(
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AiAvatar(model = summary.avatarUrl, name = displayName(summary), size = 40)
+            AiAvatar(model = summary.avatarUrl, name = summary.displayNameOrId, size = 40)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = displayName(summary),
+                    text = summary.displayNameOrId,
                     fontSize = 15.sp,
                     color = WxPalette.textPrimary(),
                     maxLines = 1,
@@ -504,9 +505,6 @@ private fun FriendRow(
         )
     }
 }
-
-private fun displayName(summary: AiProfileSummary): String =
-    summary.remark.ifBlank { summary.nickname.ifBlank { summary.wxId } }
 
 /** 右侧字母索引条：点按或上下拖动都能跳转，没有对应分组的字母淡显。 */
 @Composable
@@ -583,7 +581,7 @@ private fun DeleteProfileDialog(
         title = "删除档案",
     ) {
         Text(
-            text = "将清空「${displayName(summary)}」的聊天目标、${summary.tagCount} 个标签、" +
+            text = "将清空「${summary.displayNameOrId}」的聊天目标、${summary.tagCount} 个标签、" +
                 "${summary.memoryCount} 条记忆。操作不可恢复，好友本身不受影响。",
             fontSize = 13.sp,
             color = WxPalette.textSecondary(),
@@ -591,19 +589,7 @@ private fun DeleteProfileDialog(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AiSecondaryButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
-            Box(Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(WxPalette.Danger)
-                        .clickable { onConfirm() }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("删除", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = androidx.compose.ui.graphics.Color.White)
-                }
-            }
+            AiDangerButton(text = "删除", onClick = onConfirm, modifier = Modifier.weight(1f))
         }
     }
 }

@@ -24,9 +24,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlinedfilled.Visibility
-import com.composables.icons.materialsymbols.outlinedfilled.Visibility_off
 import com.tencent.mm.plugin.fingerprint.ui.FingerPrintAuthTransparentUI
 import com.tenpay.android.wechat.MyKeyboardWindow
 import dev.ujhhgtg.reflekt.reflekt
@@ -38,6 +35,7 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.CryptoManager
 import com.AARCNoa.zhiyou.utils.EncryptedData
@@ -133,7 +131,7 @@ object FingerprintPay : ClickableFeature() {
                         trailingIcon = {
                             IconButton(onClick = { visible = !visible }) {
                                 Icon(
-                                    imageVector = if (visible) MaterialSymbols.OutlinedFilled.Visibility else MaterialSymbols.OutlinedFilled.Visibility_off,
+                                    imageVector = if (visible) FilledIcons.Visibility else FilledIcons.Visibility_off,
                                     contentDescription = if (visible) "Hide password" else "Show password"
                                 )
                             }

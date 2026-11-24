@@ -57,6 +57,7 @@ import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
@@ -67,11 +68,6 @@ import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import com.AARCNoa.zhiyou.utils.fs.createDirsSafe
 import com.AARCNoa.zhiyou.utils.nul
 import com.AARCNoa.zhiyou.utils.serialization.DefaultJson
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Delete_forever
-import com.composables.icons.materialsymbols.outlined.Download
-import com.composables.icons.materialsymbols.outlined.Wallpaper
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import java.nio.file.Files
@@ -588,7 +584,7 @@ object TabTheme : ClickableFeature() {
                     }
                 } else {
                     Icon(
-                        imageVector = MaterialSymbols.Outlined.Wallpaper,
+                        imageVector = OutlinedIcons.Wallpaper,
                         contentDescription = null,
                         modifier = Modifier.size(48.dp),
                         tint = Color.Gray
@@ -607,7 +603,7 @@ object TabTheme : ClickableFeature() {
                         showToast("已清除 $tabName 背景")
                     }) {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Delete,
+                            imageVector = OutlinedIcons.Delete,
                             contentDescription = "删除"
                         )
                     }
@@ -663,13 +659,13 @@ object TabTheme : ClickableFeature() {
                                         ) {
                                             IconButton(onClick = { onExport(theme) }) {
                                                 Icon(
-                                                    imageVector = MaterialSymbols.Outlined.Download,
+                                                    imageVector = OutlinedIcons.Download,
                                                     contentDescription = "导出"
                                                 )
                                             }
                                             IconButton(onClick = { onDelete(theme) }) {
                                                 Icon(
-                                                    imageVector = MaterialSymbols.Outlined.Delete_forever,
+                                                    imageVector = OutlinedIcons.Delete_forever,
                                                     contentDescription = "删除",
                                                     tint = Color.Red
                                                 )

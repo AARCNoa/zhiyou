@@ -201,7 +201,7 @@ object WeMessageApi : ApiFeature(), IResolveDex {
         allowMultiple = true,
         allowFailure = true,
     ) {
-        // 串有效性复核（2026-10-29，8.0.76/8.0.79 双版本逐串验证）：
+        // 串有效性复核（8.0.76 / 8.0.79 双版本逐串验证）：
         // "RemuxInfo"、"OriginMediaInfo" 在两版 dex 里都只剩 string_ids 条目、**无任何 const-string 引用**
         // （微信裁剪了对应日志调用），三串 AND 因此恒不命中。只保留仍被引用的 TAG：
         // 8.0.76 → pluginsdk.model.b3 / app.u5 …，8.0.79 → pluginsdk.model.g3 / c71.d3 …
@@ -341,7 +341,7 @@ object WeMessageApi : ApiFeature(), IResolveDex {
         }
     }
     val classChattingDataAdapter by dexClass(allowFailure = true) {
-        // 定位修正（2026-10-29 双版本逐串验证）：
+        // 定位修正（8.0.76 / 8.0.79 双版本逐串验证）：
         //  · 原两串 "[handleMsgChange] isLockNotify:" 在两版都已是**孤儿串**（无 const-string 引用），
         //    任何依赖于它的组合都恒失败；
         //  · TAG "MicroMsg.ChattingDataAdapterV3" 仍存活，但 8.0.79 的 adapter 包内有 3 个类引用它
@@ -1613,7 +1613,7 @@ object WeMessageApi : ApiFeature(), IResolveDex {
     }
 
     fun sendXmlAppMsg(target: String, xmlContent: String): Boolean {
-        // Hchat 侧 sendXml 走 AppMsgLogic 的 13 参重载（8.0.79 上 6 参那条已不可用）
+        // sendXml 走 AppMsgLogic 的 13 参重载（8.0.79 上 6 参那条已不可用）
         val appId = extractXmlAttr(xmlContent, "appid")
         val title = extractXmlTag(xmlContent, "title")
 

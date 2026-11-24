@@ -320,7 +320,9 @@ object PipVoip : SwitchFeature(), IResolveDex {
     private val fieldVoipAudioManager by dexField(allowFailure = true) {
         matcher {
             declaredClass(classBaseVoipManager.clazz)
-            type(classVoipAudioManager.clazz.interfaces.single())
+            // 接口不唯一时用一个绝不会出现在字段上的类型，让这条委托退化为占位：
+            // 多接口直接 single() 会抛异常，整个 PiP 功能都装不上。
+            type(classVoipAudioManager.clazz.interfaces.singleOrNull() ?: java.lang.Void::class.java)
         }
     }
 

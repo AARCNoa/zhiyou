@@ -609,7 +609,7 @@ private fun featureOverview(): List<HealthItem> {
     val activeCats = byCategory.filterValues { list -> list.any { (it as? SwitchFeature)?.effectiveEnabled == true } }
 
     // 只输出「总数 + 有启用的分类 + 其余合并一行」，
-    // 否则 300 多个功能按分类铺开会把自检页拉成十几行（用户实测反馈太长）。
+    // 否则两百多个功能按分类铺开会把自检页拉成十几行。
     out += HealthItem(
         "功能总数", section, items.size.toString() + " 个",
         true,
@@ -715,12 +715,18 @@ private fun anchorImpactSection(): List<HealthItem> {
         .toSortedSet()
     val removedFeatures = broken.values.flatMap { it.removedByHost }.toSortedSet()
     val needAdapt = affectedFeatures - removedFeatures
+    // 「失效锚点 N 个」只算真的要处理的：挂在上面的功能全部已解释（微信移除 / 新路径替代）
+    // 的锚点在明细里显示成 ✅，汇总再把它算进来就会出现「说 2 个、只列出 1 个」的对不上。
+    val explainedKeys = broken.filterValues { g ->
+        g.features.isNotEmpty() && g.features.all { it in g.removedByHost || it in g.supersededFeatures }
+    }.keys
+    val realBroken = broken.size - explainedKeys.size
     out += HealthItem(
         "影响总览", section,
         when {
             broken.isEmpty() -> "全部锚点已解析"
-            needAdapt.isEmpty() -> "失效锚点 " + broken.size + " 个 · 均已解释（微信移除或新路径替代）"
-            else -> "失效锚点 " + broken.size + " 个 · 待适配 " + needAdapt.size + " 个功能"
+            realBroken == 0 -> "失效锚点 " + broken.size + " 个 · 均已解释（微信移除或新路径替代）"
+            else -> "失效锚点 " + realBroken + " 个 · 待适配 " + needAdapt.size + " 个功能"
         },
         needAdapt.isEmpty(),
         if (broken.isEmpty()) {
@@ -739,8 +745,7 @@ private fun anchorImpactSection(): List<HealthItem> {
 
     broken.forEach { (key, g) ->
         // 挂在这个锚点上的功能全部是「微信已移除」或「已由新路径替代」→ 不算故障，只作信息展示
-        val allExplained = g.features.isNotEmpty() &&
-            g.features.all { it in g.removedByHost || it in g.supersededFeatures }
+        val allExplained = key in explainedKeys
         out += HealthItem(
             "失效·" + key, section, "影响 " + g.features.size + " 个功能", false,
             "锚点 $key 在当前微信版本未解析成功。\n\n挂载功能（" + g.features.size + " 个）：\n" +
@@ -837,9 +842,7 @@ private fun dexAnchorSection(): List<HealthItem> {
     val (okCount, total) = ModuleDiagnostics.anchorStats(anchors)
     // 只有「解析不到、且没人解释为什么」的锚点才算待适配。
     // supersededNote = 已由新路径替代，unavailableReason = 微信整个功能都移除了。
-    val pendingTotal = anchors.count {
-        !it.resolved && it.supersededNote == null && it.unavailableReason == null
-    }
+    val pendingTotal = anchors.count { it.needsAdaptation() }
     out += HealthItem(
         "锚点总览", section,
         if (pendingTotal == 0) "已解析 $okCount / $total · 无待适配"
@@ -855,9 +858,8 @@ private fun dexAnchorSection(): List<HealthItem> {
         val missing = list.filterNot { it.resolved }
         val unavailable = list.firstNotNullOfOrNull { it.unavailableReason }
         // 未解析的锚点全部被解释掉（新路径替代）时，不算故障。
-        // 不能写成 `list.all { supersededNote != null }`：正常功能里大部分锚点是解析成功的，
-        // 那样条件永远不成立，只要有 1 个旧锚点就标红——8.0.79 上的「数据库服务 4/5」
-        // 「消息发送服务 46/47」「隐藏联系人 27/30」就是这么被误判成异常的。
+        // 不能写成 `list.all { supersededNote != null }`：正常功能里多数锚点是解析成功的，
+        // 那样条件永远不成立，只要有 1 个旧锚点就标红。
         val pendingAnchors = list.count { !it.resolved && it.supersededNote == null }
         val allSuperseded = pendingAnchors == 0
         val detail = buildString {
@@ -1100,7 +1102,7 @@ private fun storageSection(context: Context): List<HealthItem> {
  * 冲突检测分两层：
  * 1. 「Xposed 框架」——装的是哪个框架管理器，只是环境信息，不算冲突；
  * 2. 「其它模块」——会 Hook 微信的模块，才可能和知友抢同一批方法。
- * 用户实测反馈过：装着 LSPosed 也被标成「冲突模块」，属误报，已拆开。
+ * 框架管理器不是模块：混在一起会把 LSPosed 本身标成「冲突模块」。
  */
 private fun conflictSection(context: Context): List<HealthItem> {
     val out = mutableListOf<HealthItem>()
@@ -1419,7 +1421,7 @@ private fun HealthHeroCard(
     wechatVersion: String,
     moduleVersion: String,
 ) {
-    // 口径：异常统计只看「通过 + 异常」，未启用/提示项不算故障也不占分母（用户实测反馈）。
+    // 口径：异常统计只看「通过 + 异常」，未启用/提示项不算故障也不占分母。
     val counted = pass + fail
     val ratio = if (counted > 0) pass.toFloat() / counted else 0f
     val animated by animateFloatAsState(

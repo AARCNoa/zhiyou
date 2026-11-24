@@ -80,6 +80,22 @@ inline val Activity.rootView: ViewGroup
 inline fun Int.dpToPx(context: Context): Int =
     (this * context.resources.displayMetrics.density).toInt()
 
+/**
+ * 状态栏高度（像素）：读系统的 `status_bar_height`。
+ *
+ * [fallbackDp] 是「读不到时按多少 dp 估算」，由调用方决定：挤在屏幕顶部的浮层用 0 会贴到状态栏下沿，
+ * 所以有的地方用 24 / 25 / 28dp 兜底。这是各调用点既有的差异，不要统一成同一个数。
+ */
+fun Context.statusBarHeight(fallbackDp: Int = 0): Int {
+    val id = runCatching { resources.getIdentifier("status_bar_height", "dimen", "android") }
+        .getOrDefault(0)
+    return if (id > 0) {
+        runCatching { resources.getDimensionPixelSize(id) }.getOrDefault(fallbackDp.dpToPx(this))
+    } else {
+        fallbackDp.dpToPx(this)
+    }
+}
+
 val View.idString
     get() = if (this.id != View.NO_ID) {
         runCatching { this.resources.getResourceEntryName(this.id) }.getOrDefault(null)

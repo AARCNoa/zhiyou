@@ -17,17 +17,25 @@ object WeAppMsgApi : ApiFeature(), IResolveDex {
     private const val TAG = "WeAppMsgApi"
 
     override fun resolveDex(dexKit: DexKitBridge) {
+        // 零命中或多命中都只让本功能降级，不把异常抛给 Dex 调度器 ——
+        // 抛出去会中断整轮 resolveDex，其它锚点也一起装不上。
         val classAppMsgContent = dexKit.findClass {
             matcher {
                 usingStrings("<appmsg appid=\"", "parse amessage xml failed")
             }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "AppMsgContent 类未找到或多命中，应用消息发送不可用")
+            return
+        }
 
         val classAppMsgLogic = dexKit.findClass {
             matcher {
                 usingStrings("MicroMsg.AppMsgLogic", "summerbig sendAppMsg attachFilePath[%s], content[%s]")
             }
-        }.single()
+        }.singleOrNull() ?: run {
+            WeLogger.e(TAG, "AppMsgLogic 类未找到或多命中，应用消息发送不可用")
+            return
+        }
 
         methodParseXml.find(dexKit, true) {
             matcher {

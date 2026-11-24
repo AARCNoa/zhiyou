@@ -32,13 +32,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Content_copy
-import com.composables.icons.materialsymbols.outlined.Globe
-import com.composables.icons.materialsymbols.outlined.Info
-import com.composables.icons.materialsymbols.outlined.Open_in_new
-import com.composables.icons.materialsymbols.outlined.Person
-import com.composables.icons.materialsymbols.outlined.Shopping_cart
 import com.tencent.mm.plugin.webview.ui.tools.WebViewUI
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
@@ -49,6 +42,7 @@ import com.AARCNoa.zhiyou.preferences.WePrefs.Companion.prefOption
 import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.IconButton
 import com.AARCNoa.zhiyou.ui.content.TextButton
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.copyToClipboard
@@ -166,7 +160,7 @@ object QrCodeRecord : ClickableFeature(), IResolveDex {
                                             showToast(context, "已复制")
                                         }) {
                                             Icon(
-                                                imageVector = MaterialSymbols.Outlined.Content_copy,
+                                                imageVector = OutlinedIcons.Content_copy,
                                                 contentDescription = "Copy",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -179,8 +173,8 @@ object QrCodeRecord : ClickableFeature(), IResolveDex {
                                         }) {
                                             Icon(
                                                 imageVector =
-                                                    if (LinkExternalAppJump.isEnabled) MaterialSymbols.Outlined.Open_in_new
-                                                    else MaterialSymbols.Outlined.Globe,
+                                                    if (LinkExternalAppJump.isEnabled) OutlinedIcons.Open_in_new
+                                                    else OutlinedIcons.Globe,
                                                 contentDescription = "Open",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -190,7 +184,7 @@ object QrCodeRecord : ClickableFeature(), IResolveDex {
                                                 record.url.toUri().openInSystem(context, true)
                                             }) {
                                                 Icon(
-                                                    imageVector = MaterialSymbols.Outlined.Open_in_new,
+                                                    imageVector = OutlinedIcons.Open_in_new,
                                                     contentDescription = "Open in system",
                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -225,15 +219,15 @@ object QrCodeRecord : ClickableFeature(), IResolveDex {
     private fun getQrTypeConfig(url: String): Pair<ImageVector, Color> {
         return when {
             url.startsWith("https://u.wechat.com") -> {
-                MaterialSymbols.Outlined.Person to Color(0xFF07C160)
+                OutlinedIcons.Person to Color(0xFF07C160)
             }
 
             url.startsWith("https://wx.tenpay.com") || url.startsWith("weixin://wxpay") -> {
-                MaterialSymbols.Outlined.Shopping_cart to Color(0xFFFDAE17)
+                OutlinedIcons.Shopping_cart to Color(0xFFFDAE17)
             }
 
             else -> {
-                MaterialSymbols.Outlined.Info to MaterialTheme.colorScheme.onSurfaceVariant
+                OutlinedIcons.Info to MaterialTheme.colorScheme.onSurfaceVariant
             }
         }
     }

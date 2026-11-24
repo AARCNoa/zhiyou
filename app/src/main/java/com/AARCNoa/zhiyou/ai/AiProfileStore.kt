@@ -195,6 +195,8 @@ object AiProfileStore {
         autoReplySet = autoReplySet?.minus(wxId)
         val removed = delete(profileFile(wxId))
         removeIndexEntry(wxId)
+        // 总览里的约定一起清：档案都没了，入口红点却还亮着一个点不进去的条目。
+        runCatching { AiOverviewStore.removeFriend(wxId) }
         return removed
     }
 
@@ -346,10 +348,7 @@ object AiProfileStore {
     }
 
     /** 探针 / IO 失败的日志同时走 WeLogger 与 logcat：模块进程里 WeLogger 未必写得进目录。 */
-    private fun log(message: String) {
-        runCatching { WeLogger.w(TAG, message) }
-        runCatching { android.util.Log.w("WCX-AiProfileStore", message) }
-    }
+    private fun log(message: String) = storeLog(TAG, message)
 }
 
 /** 档案 → 索引条目。索引只保留列表要显示的字段，不复制标签与记忆。 */

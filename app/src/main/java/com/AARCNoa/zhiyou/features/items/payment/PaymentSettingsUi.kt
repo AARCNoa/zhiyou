@@ -26,13 +26,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Add
-import com.composables.icons.materialsymbols.outlined.Check
-import com.composables.icons.materialsymbols.outlined.Close
-import com.composables.icons.materialsymbols.outlined.Delete
-import com.composables.icons.materialsymbols.outlined.Edit
-import com.composables.icons.materialsymbols.outlined.Chevron_right
 
 import com.AARCNoa.zhiyou.features.items.AutomationKeywordMode
 import com.AARCNoa.zhiyou.features.items.AutomationKeywordRule
@@ -46,6 +39,7 @@ import com.AARCNoa.zhiyou.ui.content.m3.DropDownMenuWidget
 import com.AARCNoa.zhiyou.ui.content.m3.DropdownOption
 import com.AARCNoa.zhiyou.ui.content.m3.SegmentedColumnScope
 import com.AARCNoa.zhiyou.ui.content.m3.SwitchWidget
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 
 /**
  * Free-form value being edited through an in-dialog edit view. The payment dialogs live in a
@@ -111,7 +105,7 @@ internal fun PaymentNavigationRow(
         onClick = onClick,
         trailingContent = {
             Icon(
-                imageVector = MaterialSymbols.Outlined.Chevron_right,
+                imageVector = OutlinedIcons.Chevron_right,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -171,7 +165,7 @@ internal fun PaymentRuleRow(
                 ),
                 thumbContent = {
                     Icon(
-                        imageVector = if (checked) MaterialSymbols.Outlined.Check else MaterialSymbols.Outlined.Close,
+                        imageVector = if (checked) OutlinedIcons.Check else OutlinedIcons.Close,
                         contentDescription = null,
                         modifier = Modifier.size(SwitchDefaults.IconSize)
                     )
@@ -218,7 +212,7 @@ internal fun PaymentValueRow(
     onClick: () -> Unit,
     enabled: Boolean = true,
     valueHint: String? = null,
-    trailingIcon: ImageVector = MaterialSymbols.Outlined.Edit,
+    trailingIcon: ImageVector = OutlinedIcons.Edit,
 ) {
     BaseWidget(
         iconPlaceholder = false,
@@ -360,7 +354,7 @@ internal fun SegmentedColumnScope.keywordItems(
                 enabled = editable,
                 trailingContent = {
                     IconButton(enabled = editable, onClick = { onChange(rule.copy(strings = rule.strings - keyword)) }) {
-                        Icon(MaterialSymbols.Outlined.Delete, null)
+                        Icon(OutlinedIcons.Delete, null)
                     }
                 },
             )
@@ -386,7 +380,7 @@ internal fun SegmentedColumnScope.keywordItems(
                                 pendingKeyword = ""
                             },
                         ) {
-                            Icon(MaterialSymbols.Outlined.Add, null)
+                            Icon(OutlinedIcons.Add, null)
                         }
                     },
                     singleLine = true,
@@ -412,7 +406,7 @@ internal fun SegmentedColumnScope.keywordItems(
                         )
                     )
                 },
-                trailingIcon = MaterialSymbols.Outlined.Add,
+                trailingIcon = OutlinedIcons.Add,
             )
         }
     }

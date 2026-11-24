@@ -10,9 +10,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.style.WxPalette
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Check
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -66,7 +65,7 @@ fun DropdownField(
                 trailing = if (isSelected) {
                     {
                         Icon(
-                            imageVector = MaterialSymbols.Outlined.Check,
+                            imageVector = OutlinedIcons.Check,
                             contentDescription = "已选中",
                             tint = WxPalette.Primary,
                             modifier = Modifier.size(18.dp),

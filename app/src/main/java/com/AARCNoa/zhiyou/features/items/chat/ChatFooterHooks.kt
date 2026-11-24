@@ -19,8 +19,8 @@ object ChatFooterHooks : ApiFeature(), IResolveDex {
 
     private const val TAG = "ChatFooterHooks"
 
-    // ChatFooter.l0() is the deobfuscated initSmileyBtn — found by the string reference
-    // WeChat emits in its internal tracing framework at ChatFooter.java:4198.
+    // `ChatFooter.l0()` 的原始名是 initSmileyBtn：微信在内部 tracing 里会打出这个串，
+    // 所以按字符串引用就能定位，不依赖混淆名。
     private val methodInitSmileyBtn by dexMethod {
         searchPackages("com.tencent.mm.pluginsdk.ui.chat")
         matcher {
@@ -40,9 +40,34 @@ object ChatFooterHooks : ApiFeature(), IResolveDex {
             }
         }
 
+    /**
+     * 输入栏初始化完成的通知。
+     *
+     * 注入型功能（聊天工具栏）只在 ChatFooter 构造器里注入会漏掉两种场景：
+     * 在聊天页里打开开关、以及同一 ChattingUI 切会话时 footer 被复用。
+     * 这个回调每次初始化都会触发，注册方自己保证幂等。
+     */
+    private val footerListeners = java.util.concurrent.CopyOnWriteArrayList<(ChatFooter) -> Unit>()
+
+    fun addFooterListener(listener: (ChatFooter) -> Unit) {
+        if (!footerListeners.contains(listener)) footerListeners.add(listener)
+    }
+
+    fun removeFooterListener(listener: (ChatFooter) -> Unit) {
+        footerListeners.remove(listener)
+    }
+
     override fun onEnable() {
         methodInitSmileyBtn.hookAfter {
             val chatFooter = thisObject as ChatFooter
+
+            // 先通知监听者：footer 已可注入。放在找子 View 之前，
+            // 输入栏结构变化（searchedView 为 null）也挡不住工具栏补注入。
+            footerListeners.forEach { listener ->
+                runCatching { listener(chatFooter) }
+                    .onFailure { WeLogger.w(TAG, "footer 监听回调失败：${it.message}") }
+            }
+
             val searchedView = chatFooter.findViewByChildIndexes<View>(0) ?: return@hookAfter
             val imgButtons = searchedView.findViewsWhich<ImageButton> { view ->
                 view.javaClass.simpleName == "WeImageButton"

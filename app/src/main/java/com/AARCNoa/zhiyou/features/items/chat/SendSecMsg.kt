@@ -9,12 +9,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Lock
 import com.tencent.mm.pluginsdk.ui.chat.ChatFooter
 import dev.ujhhgtg.reflekt.reflekt
 
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
+import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
 import com.AARCNoa.zhiyou.features.api.core.models.MessageInfo
 import com.AARCNoa.zhiyou.features.api.ui.WeChatInputBarMenuApi
@@ -28,6 +27,7 @@ import com.AARCNoa.zhiyou.ui.content.TextButton
 import com.AARCNoa.zhiyou.ui.content.m3.RadioButtonWidget
 import com.AARCNoa.zhiyou.ui.content.m3.SegmentedColumn
 import com.AARCNoa.zhiyou.ui.content.m3.TextFieldDialogWidget
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.android.showToast
 
@@ -83,8 +83,13 @@ object SendSecMsg : ClickableFeature(), IResolveDex {
     @Volatile
     private var pendingSecSend = false
 
-    // 消息入库方法 (文本发送 NetSceneSendMsg 构造时调用), (msgInfo, boolean) -> long
-    private val methodInsertMessage by dexMethod {
+    // 消息入库方法 (文本发送 NetSceneSendMsg 构造时调用)。
+    //
+    // 两个版本形态分开描述：
+    // - 8.0.79 及更早：(MsgInfo, boolean) -> long
+    // - 8.0.80 起：    (MsgInfo, boolean, boolean) -> long（末尾多一个开关位）
+    // 同日志串在 storage 类里还有两个单参重载，必须用参数个数区分。
+    private val methodInsertMessageShort by dexMethod(allowFailure = true) {
         searchPackages("com.tencent.mm.storage")
         matcher {
             usingEqStrings("Error insert message msg:%s talker:%s")
@@ -92,6 +97,36 @@ object SendSecMsg : ClickableFeature(), IResolveDex {
             returnType("long")
         }
     }
+
+    private val methodInsertMessageLong by dexMethod(allowFailure = true) {
+        searchPackages("com.tencent.mm.storage")
+        matcher {
+            usingEqStrings("Error insert message msg:%s talker:%s")
+            paramCount(3)
+            returnType("long")
+        }
+    }
+
+    /** 钩子只读 `args[0]`（MsgInfo），哪个形态解析到就用哪个。 */
+    private val methodInsertMessage: DexMethodDelegate
+        get() = if (!methodInsertMessageLong.isPlaceholder) {
+            methodInsertMessageLong
+        } else {
+            methodInsertMessageShort
+        }
+
+    override val supersededAnchors: Map<String, String>
+        get() = if (methodInsertMessageLong.isPlaceholder) {
+            mapOf(
+                "SendSecMsg:methodInsertMessageLong" to
+                    "8.0.79 及更早的入库方法只有两个参数，已由 methodInsertMessageShort 覆盖"
+            )
+        } else {
+            mapOf(
+                "SendSecMsg:methodInsertMessageShort" to
+                    "8.0.80 起入库方法多一个 boolean，已由 methodInsertMessageLong 覆盖"
+            )
+        }
 
     // MsgSourceHelper 合并方法: static (msgInfo, String secXml, boolean) -> void
     private val methodMergeSecNode by dexMethod {
@@ -108,7 +143,7 @@ object SendSecMsg : ClickableFeature(), IResolveDex {
         listOf(
             WeChatInputBarMenuApi.ActionItem(
                 id = "send_sec_msg",
-                icon = MaterialSymbols.Outlined.Lock,
+                icon = OutlinedIcons.Lock,
                 label = ("发送安全消息"),
                 onClick = { context, chatFooter ->
                     if (chatFooter.lastText.isEmpty()) {

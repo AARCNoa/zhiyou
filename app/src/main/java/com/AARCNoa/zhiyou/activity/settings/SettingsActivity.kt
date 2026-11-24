@@ -62,35 +62,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.materialsymbols.MaterialSymbols
-import com.composables.icons.materialsymbols.outlined.Account_circle
-import com.composables.icons.materialsymbols.outlined.Add_circle
-import com.composables.icons.materialsymbols.outlined.Auto_awesome
-import com.composables.icons.materialsymbols.outlined.Article
-import com.composables.icons.materialsymbols.outlined.Bug_report
-import com.composables.icons.materialsymbols.outlined.Call
-import com.composables.icons.materialsymbols.outlined.Camera
-import com.composables.icons.materialsymbols.outlined.Chat
-import com.composables.icons.materialsymbols.outlined.Checklist
-import com.composables.icons.materialsymbols.outlined.Contacts
-import com.composables.icons.materialsymbols.outlined.Home
-import com.composables.icons.materialsymbols.outlined.Imagesearch_roller
-import com.composables.icons.materialsymbols.outlined.Movie
-import com.composables.icons.materialsymbols.outlined.Newspaper
-import com.composables.icons.materialsymbols.outlined.Package_2
-import com.composables.icons.materialsymbols.outlined.Payments
-import com.composables.icons.materialsymbols.outlined.Settings
-import com.composables.icons.materialsymbols.outlined.Wand_stars
-import com.composables.icons.materialsymbols.outlinedfilled.Article
-import com.composables.icons.materialsymbols.outlinedfilled.Auto_awesome
-import com.composables.icons.materialsymbols.outlinedfilled.Home
-import com.composables.icons.materialsymbols.outlinedfilled.Settings
 import com.AARCNoa.zhiyou.activity.settings.ai.AiAddFriendSheet
 import com.AARCNoa.zhiyou.activity.settings.ai.AiPager
 import com.AARCNoa.zhiyou.ui.content.FloatingBottomBar
 import com.AARCNoa.zhiyou.ui.content.FloatingBottomBarDefaults
 import com.AARCNoa.zhiyou.ui.content.FloatingBottomBarItem
 import com.AARCNoa.zhiyou.ui.content.MiuixStackNavigator
+import com.AARCNoa.zhiyou.ui.icons.FilledIcons
+import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.utils.HostInfo
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.ui.content.liquid.vibrancy
@@ -157,22 +136,22 @@ class SettingsActivity : ComponentActivity() {
 // ---------------------------------------------------------------------------
 
 val FEATURE_CATEGORIES = listOf(
-    "聊天" to MaterialSymbols.Outlined.Chat,
-    "联系人与群组" to MaterialSymbols.Outlined.Contacts,
-    "红包与支付" to MaterialSymbols.Outlined.Payments,
-    "朋友圈" to MaterialSymbols.Outlined.Camera,
-    "系统与隐私" to MaterialSymbols.Outlined.Wand_stars,
-    "音视频通话" to MaterialSymbols.Outlined.Call,
-    "界面美化" to MaterialSymbols.Outlined.Imagesearch_roller,
-    "公众号" to MaterialSymbols.Outlined.Newspaper,
-    "小程序" to MaterialSymbols.Outlined.Package_2,
-    "视频号" to MaterialSymbols.Outlined.Movie,
-    "个人资料" to MaterialSymbols.Outlined.Account_circle,
-    "调试" to MaterialSymbols.Outlined.Bug_report,
-    "批量操作" to MaterialSymbols.Outlined.Checklist,
-    "首页右上角菜单" to MaterialSymbols.Outlined.Add_circle,
+    "聊天" to OutlinedIcons.Chat,
+    "联系人与群组" to OutlinedIcons.Contacts,
+    "红包与支付" to OutlinedIcons.Payments,
+    "朋友圈" to OutlinedIcons.Camera,
+    "系统与隐私" to OutlinedIcons.Wand_stars,
+    "音视频通话" to OutlinedIcons.Call,
+    "界面美化" to OutlinedIcons.Imagesearch_roller,
+    "公众号" to OutlinedIcons.Newspaper,
+    "小程序" to OutlinedIcons.Package_2,
+    "视频号" to OutlinedIcons.Movie,
+    "个人资料" to OutlinedIcons.Account_circle,
+    "调试" to OutlinedIcons.Bug_report,
+    "批量操作" to OutlinedIcons.Checklist,
+    "首页右上角菜单" to OutlinedIcons.Add_circle,
     // 「密友功能」刻意放在列表**最后**（隐蔽入口，不显眼）；搜索页会排除该分类。
-    "密友功能" to MaterialSymbols.Outlined.Contacts,
+    "密友功能" to OutlinedIcons.Contacts,
 )
 
 // ---------------------------------------------------------------------------
@@ -190,7 +169,7 @@ internal sealed interface SettingsNavTarget {
 private fun SettingsRoot(onFinish: () -> Unit) {
     val stack = remember { mutableStateListOf<SettingsNavTarget>(SettingsNavTarget.Main) }
 
-    // 全局返回链（用户要求：任何子页面按返回都逐级回退，而不是直接退到微信主界面）：
+    // 全局返回链：任何子页面按返回都逐级回退，而不是直接退到微信主界面。
     // 1) 停在子页面（分类详情/自检/日志等）→ 逐级 pop；
     // 2) 已在主页 → 交给 MainPagerScreen 内层的 BackHandler（先回 pager 第 0 页再退出）。
     androidx.activity.compose.BackHandler {
@@ -394,10 +373,10 @@ private data class NavItem(val label: String, val outlined: ImageVector, val fil
  * 搜索框迁到主页顶部，所以只剩主页 / AI / 日志 / 设置四页。
  */
 private val TAB_ITEMS = listOf(
-    NavItem("主页", MaterialSymbols.Outlined.Home, MaterialSymbols.OutlinedFilled.Home),
-    NavItem("AI", MaterialSymbols.Outlined.Auto_awesome, MaterialSymbols.OutlinedFilled.Auto_awesome),
-    NavItem("日志", MaterialSymbols.Outlined.Article, MaterialSymbols.OutlinedFilled.Article),
-    NavItem("设置", MaterialSymbols.Outlined.Settings, MaterialSymbols.OutlinedFilled.Settings),
+    NavItem("主页", OutlinedIcons.Home, FilledIcons.Home),
+    NavItem("AI", OutlinedIcons.Auto_awesome, FilledIcons.Auto_awesome),
+    NavItem("日志", OutlinedIcons.Article, FilledIcons.Article),
+    NavItem("设置", OutlinedIcons.Settings, FilledIcons.Settings),
 )
 
 /** Bottom padding so scrollable content clears the floating bar. */
@@ -417,7 +396,7 @@ fun MiuixListScaffold(
     // 关闭后顶栏使用不透明底色、列表不再注册为模糊源，用于规避特定页面（内容为单个超高 item）
     // 在滚动时 backdrop 采样越界导致的顶部灰块。
     blurTopBar: Boolean = true,
-    // 内容左右内边距。脚本 Tab 内嵌 Hchat 内容（其 SettingsCard 自带 12dp），此处传 0 避免双重内边距。
+    // 内容左右内边距；内层组件自带边距时传 0，避免双重内边距。
     horizontalPadding: Dp = 12.dp,
     content: LazyListScope.() -> Unit,
 ) {
@@ -434,7 +413,7 @@ fun MiuixListScaffold(
     val barTint = MiuixTheme.colorScheme.surface.copy(alpha = 0.94f)
     Scaffold(
         // 背景统一为氛围渐变底：之前用 miuix 默认白色，分类详情/设置页与主页观感割裂
-        // （用户实测反馈：点进功能页后「一堆白色背景」）。
+        // 分类详情与主页保持同一底色，不出现整片白底。
         modifier = Modifier
             .fillMaxSize()
             .background(WxPalette.pageBackground()),

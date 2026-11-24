@@ -22,7 +22,7 @@ data class GroupIndex(
          * 旧索引没有新字段时靠它触发重建。
          * 群配置本身带默认值，加字段不会让旧文件读不出来，所以只在「派生字段口径变了」时升。
          */
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
     }
 }
 
@@ -47,6 +47,18 @@ data class GroupSummary(
     val lastStatus: String = "",
     /** 暂停 / 失败时给列表显示的原因，正常时为空。 */
     val lastError: String = "",
+    /** 工作群：每次总结额外判断当前任务与进度，显示在群名后面。 */
+    val workGroup: Boolean = false,
+    /** 工作群当前在推进的任务；空串表示没有。 */
+    val currentTask: String = "",
+    /** 任务进度 0~100；-1 表示没有任务或模型没给。 */
+    val currentProgress: Int = -1,
+    /** 工作汇报正文；空串表示还没生成。展开时直接读这份，不再读单群文件。 */
+    val report: String = "",
+    val reportAt: Long = 0,
+    /** 生成时依据的摘要条数与最后一条 id：有新摘要就说明该重算了。 */
+    val reportDigestCount: Int = 0,
+    val reportDigestKey: String = "",
 )
 
 /**
@@ -70,8 +82,30 @@ data class GroupDigestConfig(
     val lastError: String = "",
     /** 连续失败次数，成功一次即清零。 */
     val failures: Int = 0,
+    /**
+     * 工作群：每次总结额外让模型判断「当前在推进的任务 + 进度」。
+     *
+     * 与 [enabled] 独立：关掉自动总结时开关仍可留着，重新开启后下一次总结会接着更新。
+     */
+    val workGroup: Boolean = false,
+    /** 当前在推进的任务；空串表示没有。由最近一次总结写入，关掉工作群时清空。 */
+    val currentTask: String = "",
+    /** 任务进度 0~100；-1 表示没有任务。 */
+    val currentProgress: Int = -1,
+    /** 任务最后一次变化的时刻（毫秒），0 表示没有任务。 */
+    val currentTaskAt: Long = 0,
     /** 时间正序（老 → 新）；裁尾删前面，列表页倒序显示。 */
     val digests: List<GroupDigest> = emptyList(),
+    /**
+     * 工作汇报：把历史摘要整体喂给模型得出的「项目从开始到现在做了什么」。
+     *
+     * 只在用户点「汇报」时生成，不随每次总结自动跑（一次请求成本不低，且多数时候没人看）。
+     * [reportDigestCount] / [reportDigestKey] 记住生成依据，摘要变了才会重算。
+     */
+    val report: String = "",
+    val reportAt: Long = 0,
+    val reportDigestCount: Int = 0,
+    val reportDigestKey: String = "",
 ) {
 
     val intervalMs: Long
@@ -158,6 +192,13 @@ data class GroupDigestConfig(
         lastHeadline = digests.lastOrNull()?.headline.orEmpty(),
         lastStatus = lastStatus,
         lastError = lastError,
+        workGroup = workGroup,
+        currentTask = currentTask,
+        currentProgress = currentProgress,
+        report = report,
+        reportAt = reportAt,
+        reportDigestCount = reportDigestCount,
+        reportDigestKey = reportDigestKey,
     )
 }
 
@@ -175,6 +216,10 @@ data class GroupDigest(
     val messageCount: Int = 0,
     val read: Boolean = false,
     val manual: Boolean = false,
+    /** 工作群在这一刻的任务，空串表示当时没有在推进的任务。 */
+    val task: String = "",
+    /** 工作群在这一刻的进度 0~100；-1 表示没有。 */
+    val progress: Int = -1,
 )
 
 /** `lastStatus` 的取值；空串表示从未跑过。 */
@@ -218,6 +263,9 @@ const val MAX_CHUNKS = 8
 const val HEADLINE_MAX = 30
 const val POINT_MAX = 40
 const val MAX_POINTS = 6
+
+/** 工作群当前任务的展示上限；进度越界（不在 0~100）一律当没有。 */
+const val TASK_MAX = 20
 
 // ── 纯计算 ──────────────────────────────────────────────────────────────────
 
