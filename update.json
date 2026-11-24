@@ -1,0 +1,24 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1",
+  "publishedAt": "2026-11-24T11:35:00Z",
+  "changelog": "test",
+  "assets": [
+    {
+      "flavor": "legacy",
+      "abi": "arm64-v8a",
+      "urls": [
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-arm64-v8a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-arm64-v8a-release.apk"
+      ]
+    },
+    {
+      "flavor": "legacy",
+      "abi": "armeabi-v7a",
+      "urls": [
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-armeabi-v7a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.0/app-legacy-armeabi-v7a-release.apk"
+      ]
+    }
+  ]
+}
