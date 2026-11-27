@@ -24,11 +24,41 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.AARCNoa.zhiyou.utils.reflection.DexKit
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.measureTime
 
 object FeaturesLoader {
 
     private const val TAG = "FeaturesLoader"
+
+    /**
+     * 后台重扫期间被跳过的功能。它们此时没有可用的 DexKit 锚点，
+     * [BaseFeature.enable] 会拒绝启动，等解析完成后再统一补启动。
+     */
+    private val resolutionPending: MutableSet<BaseFeature> =
+        Collections.newSetFromMap(ConcurrentHashMap<BaseFeature, Boolean>())
+    @Volatile
+    private var resolutionRunning = false
+    @Volatile
+    private var resolutionTotal = 0
+
+    /** 该功能是否正在等待 DexKit 解析；等待期间 onEnable 里的 hook 会被静默跳过。 */
+    internal fun isAwaitingDexResolution(feature: BaseFeature): Boolean =
+        resolutionRunning && feature !is WeSettingsInjector && resolutionPending.contains(feature)
+
+    /** 首次安装/缓存失效后是否仍在后台解析锚点；界面据此显示「正在适配」。 */
+    val isResolving: Boolean
+        get() = resolutionRunning
+
+    /** 适配进度：已完成 / 总数；未在适配时为 null。 */
+    val resolutionProgress: Pair<Int, Int>?
+        get() {
+            if (!resolutionRunning) return null
+            val total = resolutionTotal
+            if (total <= 0) return 0 to 0
+            return (total - resolutionPending.size).coerceIn(0, total) to total
+        }
 
     /** 上次弹「加载完成」的 elapsedRealtime，用于节流。 */
     private const val KEY_STARTUP_TOAST_AT = "toast_startup_at"
@@ -77,8 +107,15 @@ object FeaturesLoader {
         val allBrokenItems = loadDescriptorsFromCache(allDexItems)
         WeLogger.i(TAG, "dex cache: ${allDexItems.size - allBrokenItems.size}/${allDexItems.size} 项可直接使用")
 
-        if (allBrokenItems.isNotEmpty())
+        if (allBrokenItems.isNotEmpty()) {
+            if (!Preferences.noDexResolve && TargetProcesses.isInMain) {
+                resolutionPending.clear()
+                resolutionPending.addAll(allBrokenItems.filterIsInstance<BaseFeature>())
+                resolutionTotal = resolutionPending.size
+                resolutionRunning = true
+            }
             handleBrokenItems(allBrokenItems)
+        }
 
         val elapsed = measureTime {
             allFeatures.forEach { feature ->
@@ -147,7 +184,15 @@ object FeaturesLoader {
                 }
                 WePrefs.putLong(KEY_STARTUP_TOAST_AT, now)
                 WeLogger.d(TAG, "startup toast shown")
-                showToast("${BuildConfig.BRAND} 加载成功!")
+                if (isResolving) {
+                    val p = resolutionProgress
+                    showToast(
+                        if (p != null) "${BuildConfig.BRAND} 正在适配微信版本（${p.first}/${p.second}），请稍候…"
+                        else "${BuildConfig.BRAND} 正在适配微信版本，请稍候…"
+                    )
+                } else {
+                    showToast("${BuildConfig.BRAND} 加载成功!")
+                }
             }.onFailure { WeLogger.d(TAG, "startup toast skipped: ${it.message}") }
         }, 1_500L)
     }
@@ -284,17 +329,71 @@ object FeaturesLoader {
 
             var repaired = 0
             val failed = mutableListOf<String>()
+            // 解析成功但缓存没落盘的：功能可用，只是下次启动还要再解析一遍。
+            // 单列出来，不再混进「适配失败」，也不影响补启用。
+            val saveFailed = mutableListOf<String>()
+            // 本次启动解析成功的项目。解析前它们被当作 broken 跳过，onEnable 从未执行；
+            // 用户在解析完成前打开开关时，[BaseFeature.enable] 会拒绝启动并等待解析，
+            // 所以下面只补「还没启动」的。
+            val resolvedItems = mutableListOf<IResolveDex>()
+            // 修复项里有 API 服务时，部分服务需要赶在微信第一次调用前挂 hook，
+            // 晚挂只能覆盖后续调用，提示里保留重启建议。
+            var apiRepaired = false
             brokenItems.forEach { item ->
                 val name = (item as? BaseFeature)?.displayName ?: item.javaClass.simpleName
-                runCatching {
-                    item.resolveAllDex(bridge)
-                    DexCacheManager.saveItemCache(item)
-                }.onSuccess {
-                    repaired++
-                    WeLogger.i(TAG, "已自动适配: $name")
-                }.onFailure {
+                val resolved = runCatching { item.resolveAllDex(bridge) }
+                (item as? BaseFeature)?.let { resolutionPending.remove(it) }
+                resolved.onFailure {
                     failed += name
                     WeLogger.e(TAG, "自动适配失败: $name", it)
+                }
+                if (resolved.isFailure) return@forEach
+
+                repaired++
+                resolvedItems += item
+                if (item is ApiFeature) apiRepaired = true
+                // 「解析成功」与「落盘成功」是两件事：前者决定功能能不能启用，
+                // 后者只决定下次启动要不要重新解析。写盘失败不能拦着功能启用。
+                if (DexCacheManager.saveItemCache(item)) {
+                    WeLogger.i(TAG, "已自动适配: $name")
+                } else {
+                    saveFailed += name
+                    WeLogger.w(TAG, "已自动适配但缓存未写入: $name")
+                }
+            }
+
+            // 解析已结束，后续 startup() 不再被等待逻辑拦住。
+            resolutionPending.clear()
+
+            // 补启动放主线程：与 loadFeatures() 调 startup() 的线程保持一致。
+            // 顺序不能反：SwitchFeature 的 onEnable 会向 API 服务注册监听/查询，
+            // API 先启动，功能才能拿到可用的服务。
+            if (resolvedItems.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    resolvedItems.filterIsInstance<ApiFeature>()
+                        .filter { it !== WeSettingsInjector && !it.isActive }
+                        .forEach { api ->
+                            runCatching { api.startup() }
+                                .onFailure { WeLogger.w(TAG, "自动启用失败: ${api.displayName}", it) }
+                            if (api.isActive) {
+                                WeLogger.i(TAG, "已自动启用: ${api.displayName}")
+                            } else {
+                                WeLogger.w(TAG, "自动启用未生效: ${api.displayName}")
+                            }
+                        }
+                    resolvedItems.filterIsInstance<SwitchFeature>()
+                        .filter {
+                            it.unavailableReason == null && it.effectiveEnabled && !it.isActive
+                        }
+                        .forEach { feature ->
+                            runCatching { feature.startup() }
+                                .onFailure { WeLogger.w(TAG, "自动启用失败: ${feature.displayName}", it) }
+                            if (feature.isActive) {
+                                WeLogger.i(TAG, "已自动启用: ${feature.displayName}")
+                            } else {
+                                WeLogger.w(TAG, "自动启用未生效: ${feature.displayName}")
+                            }
+                        }
                 }
             }
 
@@ -307,16 +406,22 @@ object FeaturesLoader {
             val stillBroken = countFeaturesNeedingAdaptation(allItems)
             val compatible = reportCompatibility(stillBroken, allItems.size)
 
+            val restartHint = if (apiRepaired) "，部分服务需重启微信后完全生效" else ""
             val message = when {
                 !compatible -> "当前微信版本部分功能暂未适配，等待模块更新"
                 repaired == 0 && failed.isEmpty() -> null
-                failed.isEmpty() -> "已自动适配 $repaired 个功能，重启微信后生效"
+                failed.isEmpty() && saveFailed.isEmpty() -> "已自动适配 $repaired 个功能$restartHint"
+                failed.isEmpty() -> "已自动适配 $repaired 个功能，${saveFailed.size} 个缓存未写入$restartHint"
                 repaired == 0 -> "${failed.size} 个功能适配失败，详见日志"
-                else -> "$repaired 个已适配，${failed.size} 个失败（详见日志）"
+                else -> "$repaired 个已适配，${failed.size} 个失败（详见日志）$restartHint"
             }
             if (message != null) {
                 withContext(Dispatchers.Main) { runCatching { showToast(message) } }
             }
+        }.invokeOnCompletion {
+            resolutionPending.clear()
+            resolutionRunning = false
+            resolutionTotal = 0
         }
     }
 

@@ -275,7 +275,7 @@ unsafe fn write_crash_log(sig: c_int, info: *mut siginfo_t, ctx: *mut c_void) {
 
         // ── Header ───────────────────────────────────────────────────────────────
         w.s("========================================\n");
-        w.s("WeKit Native Crash Report\n");
+        w.s("ZhiYou Native Crash Report\n");
         w.s("========================================\n\n");
         w.s("Crash Time: ");
         // YYYY-MM-DD HH:MM:SS
@@ -452,18 +452,34 @@ unsafe fn write_crash_log(sig: c_int, info: *mut siginfo_t, ctx: *mut c_void) {
         // ── Stack trace ───────────────────────────────────────────────────────────
         w.sep("Stack Trace");
         let mut frames = [0usize; MAX_FRAMES];
+        // The anti-detect hook hides this library from `dl_iterate_phdr`, which
+        // is exactly what the unwinder uses to locate FDEs. Let it see the real
+        // link map while the report is written, otherwise the trace is empty.
+        crate::native_hook::DL_ITERATE_UNFILTERED.store(true, Ordering::Release);
         let count = capture_backtrace(&mut frames);
+        crate::native_hook::DL_ITERATE_UNFILTERED.store(false, Ordering::Release);
 
         for (i, &frame) in frames[..count].iter().enumerate() {
             let mut dl: Dl_info = core::mem::zeroed();
             if dladdr(frame as *const c_void, &mut dl) != 0 && !dl.dli_fname.is_null() {
                 let lib = CStr::from_ptr(dl.dli_fname).to_bytes();
-                let sym = if dl.dli_sname.is_null() {
-                    b"<unknown>" as &[u8]
+                // `dli_saddr` stays 0 when dladdr() found no exporting symbol, so
+                // fall back to the module load bias; otherwise the report shows a
+                // meaningless "<unknown>+<absolute pc>".
+                let (sym, base) = if dl.dli_sname.is_null() {
+                    let base = if dl.dli_fbase.is_null() {
+                        frame
+                    } else {
+                        dl.dli_fbase as usize
+                    };
+                    (b"<unknown>" as &[u8], base)
                 } else {
-                    CStr::from_ptr(dl.dli_sname).to_bytes()
+                    (
+                        CStr::from_ptr(dl.dli_sname).to_bytes(),
+                        dl.dli_saddr as usize,
+                    )
                 };
-                let offset = frame.wrapping_sub(dl.dli_saddr as usize);
+                let offset = frame.wrapping_sub(base);
 
                 w.s("#");
                 w.u64_dec(i as u64);

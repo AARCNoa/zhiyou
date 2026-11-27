@@ -130,8 +130,11 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
         if (now - lastInitAttemptAt < INIT_RETRY_COOLDOWN_MS) return isReady
         lastInitAttemptAt = now
 
-        // 1) DexKit 锚点（部分版本可用），失败不影响下一步
+        // 1) DexKit 锚点（部分版本可用），失败不影响下一步。
+        //    必须校验类型：个别版本上静态无参的相近方法会返回 UI/MMKernel 实例，
+        //    拿它去找 SqliteDB 永远找不到，数据库会整天未就绪。
         val fromAnchor = runCatching { methodGetStorage.method.invoke(null) }.getOrNull()
+            ?.takeIf { runCatching { classCoreStorage.clazz.isInstance(it) }.getOrDefault(false) }
 
         // 2) 反射兜底：MMKernel 里「静态 + 无参 + 返回 CoreStorage」的方法
         val storage = fromAnchor ?: runCatching {
@@ -499,6 +502,10 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
         // 兜底：DexKit 的 methodGetStorage（部分版本仍可用），失败不影响上面的反射路径。
         runCatching { methodGetStorage.method }.getOrNull()?.hookAfter {
             val storageObj = result ?: return@hookAfter
+            // 同上：锚点可能落到返回 UI/MMKernel 实例的方法，类型不对就丢弃。
+            if (!runCatching { classCoreStorage.clazz.isInstance(storageObj) }.getOrDefault(false)) {
+                return@hookAfter
+            }
             if (lastStorageRef?.get() === storageObj) return@hookAfter
             initializeDatabase(storageObj)
         }
@@ -554,7 +561,7 @@ object WeDatabaseApi : ApiFeature(), IResolveDex {
 
         val wrapperObj = byType ?: byShape
         if (wrapperObj == null) {
-            WeLogger.w(
+            WeLogger.d(
                 TAG,
                 "initializeDatabase: CoreStorage(${storageObj.javaClass.name}) 中未找到 SqliteDB wrapper，本次跳过"
             )

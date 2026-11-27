@@ -28,8 +28,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         // 版本号单一数据源：CI（.github/workflows/ci.yml）直接读取此处，
         // 发版时只需在此递增 versionCode / versionName
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
 
         // TAG 是**内部标识**：日志 tag、数据目录（/sdcard/.../WCX）、Intent extra key 都用它。
         // 改名会迁移整个数据目录并丢掉已有 dex 缓存，所以品牌改名只走 BRAND，不动 TAG。
@@ -260,6 +260,7 @@ ksp {
 }
 
 dependencies {
+    implementation(kotlin("reflect"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -337,18 +338,10 @@ dependencies {
     implementation(libs.markwon.ext.tasklist)
     implementation(libs.markwon.html)
 
-    implementation(libs.mcp.server)
-    implementation(libs.mcp.client)
     implementation(platform(libs.ktor.bom))
-    implementation(libs.ktor.server.cio)
-    implementation(libs.ktor.server.cors)
-    implementation(libs.ktor.server.auth)
-    implementation(libs.ktor.server.sse)
-    implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.websockets)
-    implementation(libs.ktor.serialization.kotlinx.json)
 
     implementation(libs.osmdroid.android)
 

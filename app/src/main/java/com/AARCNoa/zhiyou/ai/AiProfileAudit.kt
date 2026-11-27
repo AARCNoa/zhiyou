@@ -248,7 +248,7 @@ object AiProfileAudit {
         AiDebug.dumpPrompt(wxId, label, system, user, tools, AiConfig.isThinkingEnabled)
         // 判断「这条标签站不站得住」要稳定，不要发挥。
         // 思考跟随全局开关；输出够不够由配置里的「输出上限」保证（思考与工具调用抢同一份预算）。
-        val result = AiConfig.chatWithTools(messages, tools, temperature = 0.2)
+        val result = AiConfig.chatWithTools(messages, tools, temperature = 0.2, affectStatus = false)
         if (result.error != null) {
             WeLogger.w(TAG, "$wxId $label 请求失败：${result.error}")
             return SliceResult.REQUEST_FAILED

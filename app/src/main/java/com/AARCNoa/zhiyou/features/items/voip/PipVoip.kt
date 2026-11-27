@@ -15,6 +15,7 @@ import com.tencent.mm.plugin.multitalk.ui.MultiTalkMainUI
 import com.tencent.mm.plugin.voip.ui.VideoActivity
 import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.activity.PipVoipActivity
+import com.AARCNoa.zhiyou.loader.utils.ActivityProxy.ActProxyMgr
 import com.AARCNoa.zhiyou.constants.PackageNames
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexClass
@@ -150,8 +151,12 @@ object PipVoip : SwitchFeature(), IResolveDex {
             runCatching {
                 val muted = micMuted
                 activity.startActivity(
+                    // 不经过 ActivityProxy：画中画要求系统侧 ActivityInfo 带
+                    // supportsPictureInPicture，代理到微信壳后壳没有这个标记，
+                    // Android 15+ 会在 setPictureInPictureParams 时直接抛异常。
                     Intent().apply {
                         component = ComponentName(PackageNames.MODULE, PipVoipActivity::class.java.name)
+                        putExtra(ActProxyMgr.EXTRA_BYPASS_ACTIVITY_PROXY, true)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         putExtra(PipVoipActivity.EXTRA_GROUP_CALL, this@Session is GroupSession)
                         putExtra(PipVoipActivity.EXTRA_MIC_MUTED, muted)

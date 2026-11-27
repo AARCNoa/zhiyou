@@ -56,6 +56,7 @@ import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.cache.DexCacheManager
 import com.AARCNoa.zhiyou.dexkit.resolution.resolveAllDex
 import com.AARCNoa.zhiyou.features.core.BaseFeature
+import com.AARCNoa.zhiyou.features.core.FeaturesLoader
 import com.AARCNoa.zhiyou.features.core.FeaturesProvider
 import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.features.items.contacts.HideContacts
@@ -106,6 +107,8 @@ fun ModuleHealthScreen(
     var runProgress by remember { mutableFloatStateOf(0f) }
     var runSubtitle by remember { mutableStateOf("") }
     var runLog by remember { mutableStateOf(listOf<Pair<String, Boolean>>()) }
+    var dexResolving by remember { mutableStateOf(FeaturesLoader.isResolving) }
+    var dexProgress by remember { mutableStateOf(FeaturesLoader.resolutionProgress) }
 
     fun launchRun(
         title: String,
@@ -177,6 +180,25 @@ fun ModuleHealthScreen(
 
     LaunchedEffect(Unit) { rescan() }
 
+    // 首次安装/缓存失效时后台还在解析锚点，此时检测结果里的「失效」是临时的；
+    // 解析结束后自动重新检测一次，避免页面停在满屏红叉。
+    LaunchedEffect(Unit) {
+        var wasResolving = FeaturesLoader.isResolving
+        dexResolving = wasResolving
+        dexProgress = FeaturesLoader.resolutionProgress
+        while (true) {
+            delay(500)
+            val nowResolving = FeaturesLoader.isResolving
+            dexResolving = nowResolving
+            dexProgress = FeaturesLoader.resolutionProgress
+            if (wasResolving && !nowResolving) {
+                while (running) delay(200)
+                rescan()
+            }
+            wasResolving = nowResolving
+        }
+    }
+
     fun showFilteredList(title: String, list: List<HealthItem>) {
         if (list.isEmpty()) {
             showToast("没有符合条件的项")
@@ -233,6 +255,37 @@ fun ModuleHealthScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
+                if (dexResolving) {
+                    item {
+                        SoftCard(contentPadding = 14) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        "正在适配当前微信版本",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = WxPalette.Warning,
+                                    )
+                                    val p = dexProgress
+                                    MiniPill(
+                                        if (p != null) "${p.first}/${p.second}" else "适配中",
+                                        WxPalette.Warning,
+                                    )
+                                }
+                                Text(
+                                    text = "首次安装或缓存失效后需要重新解析锚点。" +
+                                        (dexProgress?.let { "已完成 ${it.first}/${it.second}。" } ?: "") +
+                                        "下面的「失效」是适配完成前的临时状态，完成后会自动重新检测。",
+                                    fontSize = 12.sp,
+                                    color = WxPalette.textSecondary(),
+                                )
+                            }
+                        }
+                    }
+                }
                 item {
                     HealthHeroCard(
                         pass = passItems.size,
@@ -250,16 +303,34 @@ fun ModuleHealthScreen(
                 }
                 item {
                     HealthActionPanel(
-                        onRescan = { rescan() },
+                        onRescan = {
+                            if (FeaturesLoader.isResolving) {
+                                val p = FeaturesLoader.resolutionProgress
+                                showToast(
+                                    if (p != null) "正在适配中（${p.first}/${p.second}），请稍候…"
+                                    else "正在适配中，请稍候…"
+                                )
+                            } else {
+                                rescan()
+                            }
+                        },
                         onRepair = {
-                            launchRun(
-                                "一键修复",
-                                { moduleRepairSteps(context) },
-                                showOverlay = true,
-                                reportTitle = "一键修复结果",
-                                replaceItems = false,
-                                afterRun = { rescan() },
-                            )
+                            if (FeaturesLoader.isResolving) {
+                                val p = FeaturesLoader.resolutionProgress
+                                showToast(
+                                    if (p != null) "正在适配中（${p.first}/${p.second}），请稍候…"
+                                    else "正在适配中，请稍候…"
+                                )
+                            } else {
+                                launchRun(
+                                    "一键修复",
+                                    { moduleRepairSteps(context) },
+                                    showOverlay = true,
+                                    reportTitle = "一键修复结果",
+                                    replaceItems = false,
+                                    afterRun = { rescan() },
+                                )
+                            }
                         },
                         onCopy = {
                             val text = if (items.isEmpty()) "（尚无检测结果）"
@@ -746,16 +817,27 @@ private fun anchorImpactSection(): List<HealthItem> {
     broken.forEach { (key, g) ->
         // 挂在这个锚点上的功能全部是「微信已移除」或「已由新路径替代」→ 不算故障，只作信息展示
         val allExplained = key in explainedKeys
-        out += HealthItem(
-            "失效·" + key, section, "影响 " + g.features.size + " 个功能", false,
+        val featureList = g.features.joinToString("\n") { f ->
+            "· " + f +
+                (if (g.activeFeatures.contains(f)) "（已开启）" else "（未开启）") +
+                (if (g.removedByHost.contains(f)) " · 微信已移除实现"
+                else if (g.supersededFeatures.contains(f)) " · 已由新路径替代" else "")
+        }
+        val detail = if (allExplained) {
+            "锚点 $key 在当前微信版本未解析成功，但挂载功能均已说明（微信已移除实现或已由新路径替代），" +
+                "不影响使用，无需处理。\n\n挂载功能（" + g.features.size + " 个）：\n" + featureList
+        } else {
             "锚点 $key 在当前微信版本未解析成功。\n\n挂载功能（" + g.features.size + " 个）：\n" +
-                g.features.joinToString("\n") { f ->
-                    "· " + f +
-                        (if (g.activeFeatures.contains(f)) "（已开启，子能力实际已失效）" else "（未开启）") +
-                        (if (g.removedByHost.contains(f)) " · 微信已移除实现" else "")
-                } +
+                featureList +
                 "\n\n定位描述：" + (g.descriptor ?: "未知") +
-                "\n\n处理建议：等待特征包更新，或在「DexKit 锚点」检查项里核对该锚点的匹配条件（特征串/参数形状）是否需要针对当前微信版本重新适配。",
+                "\n\n处理建议：等待特征包更新，或在「DexKit 锚点」检查项里核对该锚点的匹配条件（特征串/参数形状）是否需要针对当前微信版本重新适配。"
+        }
+        out += HealthItem(
+            "锚点·" + key,
+            section,
+            "影响 " + g.features.size + " 个功能",
+            false,
+            detail,
             inactive = allExplained,
         )
     }

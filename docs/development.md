@@ -5,8 +5,8 @@
 - JDK 21、Android SDK（compileSdk 37）、NDK（版本见 `gradle/libs.versions.toml`）
 - SDK 路径写在 `local.properties` 的 `sdk.dir`，该文件不入库（`.gitignore` 已排除）
 - 依赖缓存可用独立的 `GRADLE_USER_HOME` 与默认环境隔离；这些路径都属于本机配置，不写进仓库
-- Rust 只用于重建 `libwekit_native.so`：源码在 `app/src/main/rust/wekit-native/`，
-  Gradle **不调 cargo**；改 Rust 需自己 `cargo build` 后替换 `app/src/main/jniLibs/*/libwekit_native.so`
+- Rust 只用于重建 `libzhiyou_native.so`：源码在 `app/src/main/rust/wekit-native/`，
+  Gradle **不调 cargo**；改 Rust 需自己 `cargo build` 后替换 `app/src/main/jniLibs/*/libzhiyou_native.so`
 
 ## 构建
 
@@ -29,7 +29,7 @@ app/build/outputs/apk/legacy/release/app-legacy-arm64-v8a-release-unsigned.apk
 
 ## 版本与发布
 
-- `versionCode` / `versionName` 在 `app/build.gradle.kts` **手工维护**（当前 `2` / `"1.1"`），
+- `versionCode` / `versionName` 在 `app/build.gradle.kts` **手工维护**（当前 `3` / `"1.2"`），
   发版只改这两行，`versionCode` 只能加不能减。
 - 应用内更新读仓库根的 `update.json`：**每次发版必须同步它的 `versionCode` 与下载地址**，
   否则客户端收不到提示。发版时按顺序改三处：`build.gradle.kts` 的版本号 → `update.json` 的

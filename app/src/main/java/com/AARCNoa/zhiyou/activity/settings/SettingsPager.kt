@@ -162,7 +162,7 @@ fun SettingsPager(
         settingsGroup(2, "微信主题") {
             PrefArrow(
                 title = "主题工坊",
-                summary = "内置 6 款全局主题，全局沉浸壁纸（主页/通讯录/发现/我的 4 个界面，或全部界面）+ 对应气泡，支持透明度调节与备份恢复",
+                summary = "内置 6 款主题：消息主页、通讯录、发现、我与聊天背景五页壁纸 + 对应气泡，支持透明度调节与备份恢复",
                 icon = OutlinedIcons.Palette,
                 onClick = { ThemeStore.onClick(context) },
             )

@@ -166,6 +166,10 @@ object ActivityProxy {
 
     object ActProxyMgr {
         const val ACTIVITY_PROXY_INTENT_TOKEN = "wekit_target_intent_token"
+        /** 置位的 Intent 不做代理，直接落到模块自己的进程（画中画等需要真实 ActivityInfo 的场景）。 */
+        const val EXTRA_BYPASS_ACTIVITY_PROXY = "wekit_bypass_activity_proxy"
+        /** 代理壳 `AppBrandProxyTransparentUI` 在 onCreate 里读的类名字段，缺失会 NPE。 */
+        const val TRANSPARENT_TASK_CLASS_EXTRA = "task_class_name"
         const val SETTINGS_PROXY = "${PackageNames.WECHAT}.app.WeChatSplashActivity"
         const val TRANSPARENT_PROXY = "${PackageNames.WECHAT}.plugin.appbrand.ipc.AppBrandProxyTransparentUI"
 
@@ -199,7 +203,8 @@ object ActivityProxy {
         }
 
         private fun shouldProxy(intent: Intent): Boolean =
-            intent.component?.let { ActProxyMgr.isModuleProxyActivity(it.className) } == true
+            !intent.getBooleanExtra(ActProxyMgr.EXTRA_BYPASS_ACTIVITY_PROXY, false) &&
+                intent.component?.let { ActProxyMgr.isModuleProxyActivity(it.className) } == true
 
         private fun createTokenWrapper(raw: Intent): Intent {
             val token = IntentTokenCache.put(Intent(raw))
@@ -212,9 +217,16 @@ object ActivityProxy {
                 setDataAndType(raw.data, raw.type)
                 raw.categories?.forEach { addCategory(it) }
                 putExtra(ActProxyMgr.ACTIVITY_PROXY_INTENT_TOKEN, token)
+                // AppBrandProxyTransparentUI.onCreate 会执行
+                //   Class.forName(getStringExtra("task_class_name"))
+                // 缺这个字段就是 forName(null) → NPE。首次启动时 intent 会被换成真实
+                // Intent，壳不执行；但 Activity 重建走的是 ActivityRelaunchItem，token
+                // 已被消费、恢复不出真实 Intent，壳会真的跑起来。补一个必然存在的类名，
+                // 让壳走到「task_object 为空 → setResult + finish」的静默退出分支。
+                putExtra(ActProxyMgr.TRANSPARENT_TASK_CLASS_EXTRA, proxyClass)
                 setExtrasClassLoader(ParcelableFixer.hybridClassLoader)
             }.also {
-                WeLogger.i(
+                WeLogger.d(
                     TAG,
                     "hijacked startActivity via token: $className -> $proxyClass"
                 )
@@ -297,13 +309,49 @@ object ActivityProxy {
             }
         }
 
+        /**
+         * 把系统侧 `ActivityClientRecord.intent` 从代理 Intent 换成真实 Intent。
+         *
+         * `newActivity` 只影响本次创建，`ActivityClientRecord` 里存的仍是启动时那份代理
+         * Intent（component 指向壳）。Activity 因配置变更被重建时，系统拿它重走一遍启动
+         * 流程，壳就被真正实例化，`onCreate` 里 `Class.forName(null)` 直接 NPE。
+         * 改掉这个字段，重建才会落在真实 Activity 上。
+         *
+         * 反射失败不致命：[ActProxyMgr] 已给壳补齐 `task_class_name`，最坏是壳静默
+         * finish（PiP 窗口丢失），不会崩。
+         */
+        private fun patchClientRecordIntent(from: Intent, to: Intent) {
+            runCatching {
+                val at = ActivityThread.currentActivityThread()
+                val activities = at.javaClass.getDeclaredField("mActivities")
+                    .makeAccessible().get(at) as? Map<*, *> ?: return
+                for (record in activities.values) {
+                    if (record == null) continue
+                    val intentField = record.javaClass.getDeclaredField("intent").makeAccessible()
+                    if (intentField.get(record) === from) {
+                        intentField.set(record, to)
+                        WeLogger.d("ProxyInstrumentation", "patched ActivityClientRecord.intent")
+                        return
+                    }
+                }
+                WeLogger.d(
+                    "ProxyInstrumentation",
+                    "no ActivityClientRecord matched, skip intent patch"
+                )
+            }.onFailure {
+                WeLogger.w("ProxyInstrumentation", "patch ActivityClientRecord.intent failed", it)
+            }
+        }
+
         override fun newActivity(cl: ClassLoader, className: String, intent: Intent): Activity {
             var resolvedIntent = intent
             var resolvedClass = className
+            var recoveredFromToken: Intent? = null
             tryRecoverIntent(intent)?.takeIf { it.component != null }?.let {
                 resolvedIntent = it
                 resolvedClass = it.component!!.className
-                WeLogger.i(
+                recoveredFromToken = it
+                WeLogger.d(
                     "ProxyInstrumentation",
                     "recovered intent in newActivity: $resolvedClass"
                 )
@@ -315,12 +363,16 @@ object ActivityProxy {
                 if (component != null && ActProxyMgr.isModuleProxyActivity(component.className)) {
                     resolvedClass = component.className
                     resolvedIntent = intent
-                    WeLogger.i(
+                    WeLogger.d(
                         "ProxyInstrumentation",
                         "resolved from intent component: $resolvedClass"
                     )
                 }
             }
+            // 从 token 恢复时必须同步改掉 ActivityClientRecord.intent：系统重建 Activity
+            // （ActivityRelaunchItem）时读的是这个字段，留着代理 Intent 就会把壳再拉起来，
+            // 壳的 onCreate 会 forName(getStringExtra("task_class_name")) → NPE。
+            recoveredFromToken?.let { patchClientRecordIntent(intent, it) }
             // 每次 Activity 创建都会走到这里，属于纯链路追踪：降 D，只在 logcat 可见。
             WeLogger.d("ProxyInstrumentation", "newActivity: $className -> $resolvedClass")
             // fast path

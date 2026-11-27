@@ -52,9 +52,12 @@ import top.yukonga.miuix.kmp.basic.Text
  * - `unavailableReason != null`：当前微信版本用不上（例如只在 8.0.80+ 生效的崩溃防御）。
  *   搜索与分类二级早已按此隐藏，此前「已启用 / 全部功能 / 统计卡」漏了，
  *   于是出现「显示已启用却搜不到」。
+ * - 主题商城：已有「设置 → 微信主题」专用入口，不在功能清单重复展示。
  */
 internal val userVisibleFeatures: List<BaseFeature> =
-    FeaturesProvider.ALL_HOOK_ITEMS.filter { it !is ApiFeature && it.unavailableReason == null }
+    FeaturesProvider.ALL_HOOK_ITEMS.filter {
+        it !is ApiFeature && it.unavailableReason == null && it.name != "主题商城"
+    }
 
 /** [userVisibleFeatures] 里真正带开关的项；统计与「已启用」清单都以此为准。 */
 internal val toggleableFeatures: List<SwitchFeature> =

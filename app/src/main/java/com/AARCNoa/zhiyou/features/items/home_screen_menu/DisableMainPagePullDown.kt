@@ -230,7 +230,7 @@ object DisableMainPagePullDown : SwitchFeature(), WeHomeScreenPopupMenuApi.IMenu
                 }
                 titleBar.addView(composeView, params)
                 titleBarIconView = composeView
-                WeLogger.i(TAG, "title bar icon installed")
+                WeLogger.d(TAG, "title bar icon installed")
             } else {
                 WeLogger.w(TAG, "title bar container not found")
             }

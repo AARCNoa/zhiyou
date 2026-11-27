@@ -2,17 +2,22 @@ package com.AARCNoa.zhiyou.features.items.beautify
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color as AndroidColor
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.widget.CompoundButton
 import android.widget.ImageView
-import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -57,18 +62,17 @@ import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
 import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.DefaultColumn
 import com.AARCNoa.zhiyou.ui.content.TextButton
-import com.AARCNoa.zhiyou.ui.utils.findViewWhich
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
 import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import com.AARCNoa.zhiyou.utils.fs.createDirsSafe
+import dev.ujhhgtg.reflekt.reflekt
 import java.io.File
-import java.lang.ref.WeakReference
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.util.concurrent.ConcurrentHashMap
+import java.util.WeakHashMap
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.div
 import kotlin.io.path.exists
@@ -76,28 +80,47 @@ import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
 
 /**
- * 主题商店（v245 全新编写）：
+ * 主题商店：
  * - 入口：wcx 设置 → 设置 → 微信主题 → 主题商城
  * - 六款内置主题：Hello Kitty（花朵气泡）/ 小熊（miko 小狗边框气泡）/ 线条小狗（加油鸭鸭气泡）/
  *   吉伊卡哇（花朵气泡）/ 美食小狗（面包🍞气泡）/ 小兔子（猫咪气泡）
- * - 使用主题后全局沉浸式：状态栏/导航栏透明，壁纸悬浮层铺满全屏（含状态栏/导航栏区域），
- *   微信主页、设置页、朋友圈等所有微信页面一律生效；**扫一扫与查看相册页面不挂壁纸**
- *   （仅取消壁纸覆盖，沉浸式等其余不变，避免相机取景区域被遮挡影响扫码）
+ * - 壁纸只作用于五个页面：消息主页、通讯录、发现、我、聊天背景。
+ *   四个 Tab 的壁纸放在各自页容器的最底层（页面背景），聊天页写入微信自己的聊天背景 View，
+ *   壁纸始终位于内容下方，不遮挡控件。
+ * - 四个 Tab 内的中性底衬（白/灰/黑）在原 Drawable 上压 alpha，彩色背景、文字与图片不动；
+ *   整页大小的灰底直接全透明；聊天页内部不处理，其它页面不接管。
  * - 气泡按「自定义消息气泡」的方式应用：主题气泡写入 <模块数据>/assets/left_bubble.9.png（对方）
  *   与 right_bubble.9.png（自己），9-patch 黑边解析为 NinePatchDrawable，同时开启该功能开关
- * - 壁纸透明度 5%~100% 滑杆调节（即时生效）
- * - 恢复默认主题：还原系统栏/壁纸层与应用主题前的气泡（应用前自动备份用户原有气泡）
+ * - 界面透明度 5%~100% 滑杆调节（只改控件底衬，壁纸/文字/图片不透明，即时生效）
+ * - 恢复默认主题：还原壁纸层/页面原背景/聊天背景与应用主题前的气泡
  * - 素材内置在模块 APK assets/theme_store/（壁纸 + 每主题 left/right 气泡）
  */
 @Feature(
     name = "主题商城",
     categories = ["界面美化"],
-    description = "六款卡通主题一键应用：全局沉浸壁纸（主页/设置/朋友圈等全部页面，扫一扫除外）+ 对应主题气泡，支持透明度调节与恢复默认主题"
+    description = "六款卡通主题一键应用：消息主页、通讯录、发现、我、聊天背景五页壁纸 + 对应主题气泡，支持透明度调节与恢复默认主题"
 )
 object ThemeStore : ClickableFeature() {
 
     private const val TAG = "ThemeStore"
-    private const val WALLPAPER_TAG = "wcx_theme_store_wallpaper"
+    /**
+     * 控件底衬的不透明度：透明度滑杆越高，底衬越透明、壁纸越明显。
+     * 只作用于背景，不影响文字/图片本身。
+     */
+    private fun backgroundAlpha(): Int =
+        255 - (overlayOpacityPct.coerceIn(5, 100) * 255 / 100)
+    private const val CHAT_BG_VIEW_CLASS = "com.tencent.mm.ui.chatting.ChattingImageBGView"
+    private const val BOUNCE_VIEW_CLASS = "com.tencent.mm.ui.widget.pulldown.WeUIBounceViewV2"
+    private val BOUNCE_COLOR_SETTERS = arrayOf(
+        "setBgColor",
+        "setStart2EndBgColor",
+        "setEnd2StartBgColor",
+        "setStart2EndBgColorByActionBar",
+        "setEnd2StartBgColorByNavigationBar",
+    )
+    private val BOUNCE_DRAWABLE_SETTERS = arrayOf("setBg", "setStart2EndBg", "setEnd2StartBg")
+    private const val LAUNCHER_UI_CLASS = "com.tencent.mm.ui.LauncherUI"
+    private const val CHATTING_UI_CLASS = "com.tencent.mm.ui.chatting.ChattingUI"
     private const val LEFT_BUBBLE_FILE = "left_bubble.9.png"   // 对方
     private const val RIGHT_BUBBLE_FILE = "right_bubble.9.png" // 自己
     private const val CUSTOM_BUBBLES_PREF_KEY = "自定义消息气泡"
@@ -109,6 +132,56 @@ object ThemeStore : ClickableFeature() {
     // ══════════════════════════════════════════════════════════
     private var activeThemeId by prefOption("theme_store_active_id", "")
     private var overlayOpacityPct by prefOption("theme_store_overlay_opacity", 40)
+
+    // ══════════════════════════════════════════════════════════
+    // 壁纸层 / 页面背景状态（都在主线程读写）
+    // ══════════════════════════════════════════════════════════
+    /** Tab 页容器 -> 铺在页面背景上的壁纸 Drawable。 */
+    private val tabWallpapers = WeakHashMap<ViewGroup, Drawable>()
+
+    /** Tab 页当前壁纸路径（换主题时据此重建 Drawable）。 */
+    private val tabWallpaperPaths = WeakHashMap<ViewGroup, String?>()
+
+    /** Tab 页原本的背景（恢复默认时还原）。 */
+    private val pageOriginalBackgrounds = WeakHashMap<ViewGroup, Drawable?>()
+
+    /** 当前已经被调成半透明的 Drawable（同一个 Drawable 不重复处理）。 */
+    private val appliedBackgrounds = WeakHashMap<View, Drawable>()
+
+    /** View 背景 Drawable 的原始 alpha（恢复默认时还原）。 */
+    private val originalBgAlpha = WeakHashMap<View, Int>()
+    private val originalImageAlpha = WeakHashMap<ImageView, Int>()
+
+
+    /** 被清空的灰阶 tint（恢复默认时还原）。 */
+    private val clearedTints = WeakHashMap<View, ColorStateList?>()
+
+    /** Tab 页上次清背景的时间，避免每次布局都整页递归。 */
+    private val lastBackgroundClearAt = WeakHashMap<ViewGroup, Long>()
+
+    /** 已经处理过下拉回弹背景的页（每页只处理一次）。 */
+    private val bounceHandledPages = WeakHashMap<ViewGroup, Boolean>()
+
+    /** 已关闭磨砂层的页（FrostedContentView 会把内容模糊后再盖一层，壁纸全被挡）。 */
+    private val frostedDisabledPages = WeakHashMap<ViewGroup, Boolean>()
+
+    /** 已经挂了布局监听的 ViewPager。 */
+    private val watchedPagers = java.util.Collections.newSetFromMap(WeakHashMap<ViewGroup, Boolean>())
+
+    /** 聊天背景 View -> 原图（恢复默认时还原）。 */
+    private val chatBackgrounds = WeakHashMap<ImageView, ChatBgBackup>()
+
+    private data class ChatBgBackup(val drawable: Drawable?, val imageAlpha: Int)
+
+    @Volatile private var chatHooksInstalled = false
+    private var chatHookFailureLogged = false
+    @Volatile private var bounceHooksInstalled = false
+    @Volatile private var backgroundHooksInstalled = false
+    @Volatile private var overlayHooksInstalled = false
+
+    /** 当前壁纸位图缓存：同一张壁纸在四个页面共用，避免每次切页重复解码。 */
+    private var wallpaperBitmapPath: String? = null
+    private var wallpaperBitmap: Bitmap? = null
 
     // ══════════════════════════════════════════════════════════
     // 主题定义
@@ -196,20 +269,6 @@ object ThemeStore : ClickableFeature() {
     private fun builtinBubbleFile(theme: ThemeInfo, sideName: String) = builtinThemeDir(theme) / sideName
 
     // ══════════════════════════════════════════════════════════
-    // 沉浸式窗口备份
-    // ══════════════════════════════════════════════════════════
-    private class WindowBackup(
-        val actRef: WeakReference<Activity>,
-        val statusBarColor: Int,
-        val navBarColor: Int,
-        val sysUi: Int,
-        val contrastStatusEnforced: Boolean,
-        val contrastNavEnforced: Boolean
-    )
-
-    private val windowBackups = ConcurrentHashMap<Int, WindowBackup>()
-
-    // ══════════════════════════════════════════════════════════
     // 生命周期
     // ══════════════════════════════════════════════════════════
     @Volatile private var callbacksRegistered = false
@@ -226,6 +285,8 @@ object ThemeStore : ClickableFeature() {
             // 进程启动早期注册可能失败（Application 还没 attach、MMKV 还没就绪），
             // 这里每次 resume 都补一次 —— 这是「划掉后台重开、主题就丢了」的兜底。
             ensureCallbacks()
+            ensureChatHooks()
+            ensureBounceHooks()
             ensureRestored("Activity.onResume")
             if (activeThemeId.isNotEmpty()) {
                 try { applyThemeTo(activity) } catch (e: Throwable) { WeLogger.w(TAG, "onActivityResumed 应用主题异常", e) }
@@ -234,13 +295,13 @@ object ThemeStore : ClickableFeature() {
         override fun onActivityPaused(activity: Activity) {}
         override fun onActivityStopped(activity: Activity) {}
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-        override fun onActivityDestroyed(activity: Activity) {
-            windowBackups.remove(System.identityHashCode(activity))
-        }
+        override fun onActivityDestroyed(activity: Activity) {}
     }
 
     override fun onEnable() {
         ensureCallbacks()
+        ensureChatHooks()
+        ensureBounceHooks()
         ensureRestored("onEnable")
     }
 
@@ -275,6 +336,8 @@ object ThemeStore : ClickableFeature() {
         try {
             app.registerActivityLifecycleCallbacks(activityCallbacks)
             callbacksRegistered = true
+            ensureChatHooks()
+            ensureBounceHooks()
             WeLogger.d(TAG, "已注册 Activity 生命周期回调")
         } catch (e: Throwable) {
             WeLogger.w(TAG, "注册生命周期回调异常", e)
@@ -369,6 +432,8 @@ object ThemeStore : ClickableFeature() {
         try {
             // 应用主题时必然有 Activity，是注册生命周期回调最可靠的时机。
             ensureCallbacks()
+            ensureChatHooks()
+            ensureBounceHooks()
             ensureBuiltinExtracted(theme)
             backupExistingBubbles()
             // 气泡写入模块 assets（left=对方 / right=自己），并开启「自定义消息气泡」开关
@@ -406,7 +471,7 @@ object ThemeStore : ClickableFeature() {
         builtinTheme(activeThemeId)?.let { builtinWallpaperFile(it) }?.takeIf { it.exists() }
 
     // ══════════════════════════════════════════════════════════
-    // 全局应用：对所有存活 Activity 挂载沉浸式 + 壁纸悬浮层
+    // 应用范围：只有消息主页/通讯录/发现/我（LauncherUI 四页）与聊天背景
     // ══════════════════════════════════════════════════════════
     private fun applyThemeToAllLive() {
         liveActivities().forEach { act ->
@@ -416,40 +481,34 @@ object ThemeStore : ClickableFeature() {
 
     private fun applyThemeTo(activity: Activity) {
         if (activeThemeId.isEmpty()) return
-        applyImmersive(activity)
-        // 扫一扫页面与照片/视频「放大查看」页面不挂壁纸：相机取景被遮挡影响扫码、
-        // 查看页被壁纸盖住会与照片重叠。查看页多为半透明 Activity / 同窗口浮层 / 独立窗口，
-        // 不一定有 Activity resume 信号——因此聊天页（ChattingUI）本身也不挂壁纸，
-        // 从源头消除「照片透出聊天页壁纸蒙版」的可能；返回时其他页面 onResume 自动恢复。
-        if (isScannerPage(activity) || isPhotoViewerPage(activity) || isChattingPage(activity)) {
-            liveActivities().forEach { act ->
-                try { removeWallpaper(act) } catch (e: Throwable) { WeLogger.w(TAG, "豁免页移除壁纸异常", e) }
-            }
-        } else {
-            applyWallpaper(activity)
+        if (isLauncherUI(activity)) {
+            applyTabWallpapers(activity)
+            // 聊天页在 8.x 既可能是独立 Activity，也可能是 LauncherUI 里的 Fragment；
+            // 后者没有 Activity resume 信号，这里顺带扫一次。
+            applyChatBackground(activity)
+            runCatching { convertPanelBackgrounds(activity) }
+        } else if (isChattingPage(activity)) {
+            applyChatBackground(activity)
         }
     }
 
+    private fun isLauncherUI(activity: Activity): Boolean =
+        activity.javaClass.name == LAUNCHER_UI_CLASS
+
     /**
-     * 聊天页判定：壁纸挂在聊天页上会透过照片查看浮层/半透明页盖住内容，故聊天页一律不挂壁纸。
-     *
-     * ## 类名修正（聊天页浸透的根因）
-     * 微信 8.x 的真实类名是 `com.tencent.mm.ui.chatting.ChattingUI`，
-     * 此前误写成 `com.tencent.mm.ui.ChattingUI`（少一层 `.chatting`），判定永不命中，
-     * 导致内置主题的壁纸被挂到聊天页 decorView 顶层 → 聊天页看到主题壁纸（浸透）。
-     *
-     * ## 变体兼容
-     * 微信 8.0.80 共有 26+ 个继承 ChattingUI 的变体（ChattingMainUI / BizHalfScreenChattingUI /
-     * FinderChattingUI / VoipChattingUI / OpenImKefuServiceChattingUI / variants.AppBrandChattingUI 等），
-     * 精确等号只能覆盖主类，故改为沿父类链向上匹配，未来新增子类同样命中。
+     * 聊天页判定：沿父类链匹配 `ChattingUI` 及其 8.0.80 的 26+ 个变体
+     * （ChattingMainUI / BizHalfScreenChattingUI / FinderChattingUI / VoipChattingUI /
+     * OpenImKefuServiceChattingUI / variants.AppBrandChattingUI 等）。
+     * 精确等号只能覆盖主类，因此用包含关系；未来新增子类同样命中。
      */
     private fun isChattingPage(activity: Activity): Boolean {
         var clazz: Class<*>? = activity.javaClass
         var depth = 0
         while (clazz != null && depth < 8) {
             val name = clazz.name
-            if (name == "com.tencent.mm.ui.chatting.ChattingUI" ||
-                name == "com.tencent.mm.ui.ChattingUI"
+            if (name == CHATTING_UI_CLASS ||
+                name.contains("ChattingUI") ||
+                name.contains("ChattingMainUI")
             ) {
                 return true
             }
@@ -459,158 +518,675 @@ object ThemeStore : ClickableFeature() {
         return false
     }
 
-    
-
-    /** 微信「扫一扫」相关页面：plugin.scanner 包（扫码页/选模式/相册扫码/扫码结果等）。 */
-    private fun isScannerPage(activity: Activity): Boolean =
-        activity.javaClass.name?.startsWith("com.tencent.mm.plugin.scanner") == true
-
-    /**
-     * 照片/视频「放大查看」页面：壁纸若悬浮其上会盖住照片，一律不挂壁纸。
-     * 类名取自微信 8.0.77 manifest 实测：
-     * - ui.chatting.gallery.* ：聊天图片/视频查看（ImageGalleryUI 等）与聊天记录媒体页
-     * - plugin.gallery.*      ：相册选图预览
-     * - plugin.sns.ui.SnsGalleryUI / SnsSightPlayerUI / VideoFullScreenActivity：朋友圈照片/视频
-     * - plugin.fav.ui.FavImgGalleryUI / gallery.FavMediaGalleryUI / detail.FavoriteSightDetailUI：收藏媒体
-     * - view.activity.ImageQueryGalleryUI、ui.media.MediaGalleryContainerUI：通用媒体查看容器
-     */
-    private fun isPhotoViewerPage(activity: Activity): Boolean {
-        val name = activity.javaClass.name ?: return false
-        return name.startsWith("com.tencent.mm.ui.chatting.gallery") ||
-            name.startsWith("com.tencent.mm.plugin.gallery") ||
-            name == "com.tencent.mm.plugin.sns.ui.SnsGalleryUI" ||
-            name == "com.tencent.mm.plugin.sns.ui.SnsSightPlayerUI" ||
-            name == "com.tencent.mm.plugin.sns.ui.VideoFullScreenActivity" ||
-            name == "com.tencent.mm.plugin.fav.ui.FavImgGalleryUI" ||
-            name == "com.tencent.mm.plugin.fav.ui.gallery.FavMediaGalleryUI" ||
-            name == "com.tencent.mm.plugin.fav.ui.detail.FavoriteSightDetailUI" ||
-            name == "com.tencent.mm.view.activity.ImageQueryGalleryUI" ||
-            name == "com.tencent.mm.ui.media.MediaGalleryContainerUI"
-    }
-
-    /**
-     * 沉浸式系统栏：状态栏/导航栏透明 + 浅色图标（可恢复）。
-     * 注意：不设置 LAYOUT_FULLSCREEN/LAYOUT_STABLE 布局旗标——那会让微信页面按全屏布局
-     * 把内容顶到状态栏下（如「我 → 服务」页面整体上移被遮挡）。透明系统栏 + 壁纸悬浮层
-     * 覆盖在 decorView 顶层（含系统栏区域），视觉上同样是全屏沉浸，且不改变页面布局。
-     */
-    private fun applyImmersive(activity: Activity) {
-        val w = activity.window ?: return
-        val hash = System.identityHashCode(activity)
-        try {
-            @Suppress("DEPRECATION")
-            if (!windowBackups.containsKey(hash)) {
-                windowBackups[hash] = WindowBackup(
-                    WeakReference(activity),
-                    w.statusBarColor,
-                    w.navigationBarColor,
-                    w.decorView.systemUiVisibility,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && w.isStatusBarContrastEnforced,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && w.isNavigationBarContrastEnforced
-                )
-            }
-            @Suppress("DEPRECATION")
-            w.statusBarColor = AndroidColor.TRANSPARENT
-            w.navigationBarColor = AndroidColor.TRANSPARENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                w.isStatusBarContrastEnforced = false
-                w.isNavigationBarContrastEnforced = false
-            }
-            // 仅切换图标为浅色（可读），不加任何布局旗标
-            @Suppress("DEPRECATION")
-            w.decorView.systemUiVisibility = w.decorView.systemUiVisibility or
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-        } catch (e: Throwable) {
-            WeLogger.w(TAG, "applyImmersive 异常", e)
+    // ══════════════════════════════════════════════════════════
+    // 四个 Tab：壁纸插在各自页容器的 index 0（所有 UI 之下）
+    // ══════════════════════════════════════════════════════════
+    private fun applyTabWallpapers(activity: Activity) {
+        val decor = activity.window?.decorView ?: return
+        fun decorateOnce() {
+            if (activeThemeId.isEmpty()) return
+            val pager = findTabPager(activity) ?: return
+            watchPager(pager)
+            decorateTabPages(pager)
+        }
+        decorateOnce()
+        // ViewPager / 子页可能晚于 onResume 创建（尤其冷启动）。
+        // 补几次「重新找 pager」，不能只在找到 pager 后补。
+        for (delay in longArrayOf(300L, 900L, 1800L, 3000L)) {
+            decor.postDelayed({ runCatching { decorateOnce() } }, delay)
         }
     }
 
-    /**
-     * 壁纸悬浮层：挂在 decorView 顶层（触摸透明），铺满全屏（含状态栏/导航栏区域）。
-     * 已存在则复用并刷新壁纸图/透明度，避免闪烁。
-     * 注：曾尝试「内容底衬」（挂在窗体容器 index 0）——微信各页根布局不透明会完全盖住底衬
-     * （看不到壁纸），且影响微信自绘窗口（wcx 设置入口卡启动图），故回退为顶层悬浮。
-     */
-    private fun applyWallpaper(activity: Activity) {
-        // 兜底：聊天页永不挂壁纸。
-        // onActivityResumed 分支已做豁免，这里再拦一次，防止 resume 时序竞态
-        // （转场期间壁纸先挂后判、liveActivities 快照不全等）导致漏判而浸透。
-        if (isChattingPage(activity)) {
-            removeWallpaper(activity)
-            return
-        }
-        val decor = activity.window?.decorView as? ViewGroup ?: return
-        val alpha = overlayOpacityPct.coerceIn(5, 100) / 100f
-        val theme = currentTheme()
-        val src = wallpaperSource()
-        try {
-            var container = decor.findViewWithTag<FrameLayout>(WALLPAPER_TAG)
-            if (container == null) {
-                container = FrameLayout(activity).apply {
-                    tag = WALLPAPER_TAG
-                    isClickable = false
-                    isFocusable = false
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+    /** 在 LauncherUI 里找 Tab 的 ViewPager；四个 Tab 页就是它的前四个子 View。 */
+    private fun findTabPager(activity: Activity): ViewGroup? {
+        val decor = activity.window?.decorView as? ViewGroup ?: return null
+        var best: ViewGroup? = null
+        var bestScore = Long.MIN_VALUE
+        var visited = 0
+        fun walk(v: View, depth: Int) {
+            if (visited >= 6000 || depth > 32) return
+            visited++
+            if (v is ViewGroup && v.childCount >= 2 && isViewPagerLike(v)) {
+                // 有 4 个子页的优先；同为 4 页时取面积最大的（排除页面内部的小 Pager）。
+                val fourPages = if (v.childCount >= 4) 1_000_000_000L else 0L
+                val score = fourPages + v.width.toLong() * v.height
+                if (score > bestScore) {
+                    bestScore = score
+                    best = v
                 }
-                // 保持在最上层，但不盖住之后挂载的侧边栏面板/触发按钮
-                decor.addView(container)
             }
-            if (decor.indexOfChild(container) != decor.childCount - 1) {
-                decor.removeView(container)
-                decor.addView(container)
+            if (v is ViewGroup) {
+                for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
             }
-            val iv = container.getChildAt(0) as? ImageView ?: ImageView(activity).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-            }.also { container.addView(it) }
-            val bmp = src?.let { runCatching { BitmapFactory.decodeFile(it.absolutePathString()) }.getOrNull() }
-            if (bmp != null && iv.tag != src.absolutePathString()) {
-                iv.setImageBitmap(bmp)
-                iv.tag = src.absolutePathString()
+        }
+        walk(decor, 0)
+        return best
+    }
+
+    private fun isViewPagerLike(v: ViewGroup): Boolean {
+        var clazz: Class<*>? = v.javaClass
+        var depth = 0
+        while (clazz != null && depth < 6) {
+            if (clazz.name.contains("ViewPager")) return true
+            clazz = clazz.superclass
+            depth++
+        }
+        return false
+    }
+
+    /** 页面被懒创建/切换时重新铺一次；监听只装一次，随 pager 自己销毁。 */
+    private fun watchPager(pager: ViewGroup) {
+        if (!watchedPagers.add(pager)) return
+        runCatching {
+            pager.viewTreeObserver.addOnGlobalLayoutListener {
+                if (activeThemeId.isEmpty()) return@addOnGlobalLayoutListener
+                runCatching { decorateTabPages(pager) }
             }
-            if (bmp == null) {
-                // 壁纸缺失兜底：主题色
-                iv.setImageDrawable(ColorDrawable(theme?.previewColor?.toInt() ?: 0xFFF0F0F0.toInt()))
-            }
-            iv.alpha = alpha
-            container.setBackgroundColor(AndroidColor.TRANSPARENT)
-        } catch (e: Throwable) {
-            WeLogger.w(TAG, "applyWallpaper 异常", e)
+        }.onFailure {
+            watchedPagers.remove(pager)
+            WeLogger.d(TAG, "Tab 页布局监听安装失败：${it.message}")
         }
     }
 
-    private fun removeWallpaper(activity: Activity) {
-        val decor = activity.window?.decorView as? ViewGroup ?: return
-        try {
-            decor.findViewWithTag<View>(WALLPAPER_TAG)?.let { decor.removeView(it) }
-        } catch (e: Throwable) { WeLogger.w(TAG, "removeWallpaper 异常", e) }
+    private fun decorateTabPages(pager: ViewGroup) {
+        if (activeThemeId.isEmpty()) return
+        val count = minOf(4, pager.childCount)
+        for (index in 0 until count) {
+            val page = pager.getChildAt(index) as? ViewGroup ?: continue
+            runCatching { ensureTabWallpaper(page, index) }
+        }
     }
 
-    private fun restoreWindow(activity: Activity) {
-        val hash = System.identityHashCode(activity)
-        val backup = windowBackups.remove(hash) ?: return
-        val act = backup.actRef.get() ?: return
-        try {
-            @Suppress("DEPRECATION")
-            act.window?.statusBarColor = backup.statusBarColor
-            act.window?.navigationBarColor = backup.navBarColor
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                act.window?.isStatusBarContrastEnforced = backup.contrastStatusEnforced
-                act.window?.isNavigationBarContrastEnforced = backup.contrastNavEnforced
+    private fun ensureTabWallpaper(page: ViewGroup, index: Int) {
+        if (activeThemeId.isEmpty()) return
+        val theme = currentTheme() ?: return
+        val wallpaperPath = wallpaperSource()?.absolutePathString()
+        val current = tabWallpapers[page]
+        // 背景可能被微信重设；换主题时路径也会变，两种情况都重建一次。
+        if (current == null || tabWallpaperPaths[page] != wallpaperPath || page.background !== current) {
+            val bitmap = wallpaperBitmapFor(wallpaperSource())
+            val drawable: Drawable = if (bitmap != null) {
+                BitmapDrawable(page.resources, bitmap)
+            } else {
+                // 壁纸文件缺失：回退主题色
+                ColorDrawable(theme.previewColor.toInt())
             }
-            @Suppress("DEPRECATION")
-            act.window?.decorView?.systemUiVisibility = backup.sysUi
-        } catch (e: Throwable) { WeLogger.w(TAG, "restoreWindow 异常", e) }
+            if (!pageOriginalBackgrounds.containsKey(page)) {
+                pageOriginalBackgrounds[page] = page.background
+            }
+            page.background = drawable
+            tabWallpapers[page] = drawable
+            tabWallpaperPaths[page] = wallpaperPath
+            WeLogger.d(TAG, "tab #$index 壁纸层已挂载：${page.javaClass.simpleName}")
+        } else {
+            // 壁纸本身始终不透明；透明度只作用于列表/卡片的底衬。
+            current.alpha = 255
+        }
+        runCatching {
+            page.javaClass.getMethod("setFrostedEnabled", java.lang.Boolean.TYPE).invoke(page, false)
+        }
+        if (frostedDisabledPages.put(page, true) == null) {
+            WeLogger.d(TAG, "tab #$index 已关闭页面磨砂层")
+        }
+        if (bounceHandledPages.put(page, true) == null) {
+            runCatching { clearBounceBackground(page) }
+        }
+        // 只处理这四个页面：清掉内部的白/灰/黑底衬，让壁纸从 UI 下方透出来。
+        // 页面内容是懒加载的，所以按页节流重扫，迟到创建/被微信重设的背景也能清掉。
+        val now = android.os.SystemClock.uptimeMillis()
+        val last = lastBackgroundClearAt[page] ?: 0L
+        if (now - last >= 400L) {
+            lastBackgroundClearAt[page] = now
+            val cleared = runCatching { clearPageBackgrounds(page) }.getOrDefault(0)
+            if (cleared > 0) WeLogger.d(TAG, "tab #$index 透明底衬 $cleared 个")
+        }
+    }
+
+    private fun wallpaperBitmapFor(src: java.nio.file.Path?): Bitmap? {
+        if (src == null) return null
+        val path = src.absolutePathString()
+        wallpaperBitmap?.takeIf { wallpaperBitmapPath == path && !it.isRecycled }?.let { return it }
+        val bitmap = runCatching { BitmapFactory.decodeFile(path) }.getOrNull() ?: return null
+        wallpaperBitmapPath = path
+        wallpaperBitmap = bitmap
+        return bitmap
     }
 
     /**
-     * 恢复默认：清空主题 id、还原窗口/壁纸层、还原应用主题前的气泡文件。
+     * 把四个 Tab 页内部的中性底衬改成半透明，让底层壁纸透出来。
+     *
+     * 白/浅灰/深灰/黑都算底衬：只在原 Drawable 上改 alpha，不替换背景对象，
+     * 圆角、九宫格留白和状态都不变。占页面一半以上的 ColorDrawable 直接全透明，
+     * 避免整页灰纱；列表行、小卡片按滑杆保留底衬。
+     * 彩色背景（红点、彩色标签、彩色卡片）保持原样；文字、头像、按钮等控件
+     * 自身的背景不处理。每页最多遍历 6000 个节点，被改的 View 记录原 alpha，
+     * 恢复默认时还原。
+     */
+    private fun clearPageBackgrounds(root: ViewGroup): Int {
+        val dm = root.resources.displayMetrics
+        val screen = dm.widthPixels.toLong() * dm.heightPixels
+        var visited = 0
+        var cleared = 0
+        fun walk(v: View, depth: Int) {
+            if (visited >= 6000 || depth > 32) return
+            visited++
+            val fullPage = v.width.toLong() * v.height >= screen / 2
+            val control = v is TextView || v is ImageView || v is ProgressBar ||
+                v is SeekBar || v is CompoundButton
+            if (!control) {
+                val bg = v.background
+                if (bg != null) {
+                    if (bg === appliedBackgrounds[v]) {
+                        // 微信可能自己改回不透明，每轮按滑杆重新压一次。
+                        val original = originalBgAlpha[v] ?: 255
+                        runCatching {
+                            bg.alpha = if (fullPage && bg is ColorDrawable) {
+                                0
+                            } else {
+                                minOf(original, backgroundAlpha())
+                            }
+                        }
+                    } else {
+                        val originalAlpha = bg.alpha
+                        if (makeBackgroundTranslucent(bg, fullPage = fullPage)) {
+                            if (!originalBgAlpha.containsKey(v)) {
+                                originalBgAlpha[v] = originalAlpha
+                            }
+                            appliedBackgrounds[v] = bg
+                            cleared++
+                        }
+                    }
+                }
+                val tint = v.backgroundTintList
+                if (tint != null && isNeutralBackdrop(tint.defaultColor)) {
+                    if (!clearedTints.containsKey(v)) clearedTints[v] = tint
+                    runCatching { v.backgroundTintList = null }
+                }
+            }
+            if (v is ViewGroup) {
+                for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
+            }
+        }
+        walk(root, 0)
+        return cleared
+    }
+
+    /**
+     * 直接改 View 现有背景 Drawable 的 alpha（不换背景对象）。
+     *
+     * 只调 Drawable.alpha，不碰 padding / 圆角 / 状态列表，所以控件位置不会漂移，
+     * 也不会受「先 setBackground 再被微信重设」的影响。
+     * - BitmapDrawable（普通图片）不动；
+     * - ColorDrawable 只动灰阶（白/浅灰/深灰/黑）；
+     * - NinePatch / Gradient / StateList / Ripple / Layer 等底衬统一 setAlpha。
+     */
+    private fun makeBackgroundTranslucent(
+        bg: Drawable,
+        allowBitmap: Boolean = false,
+        fullPage: Boolean = false,
+    ): Boolean {
+        // 普通页面里的 BitmapDrawable 是头像/图片，不能动；
+        // 下拉小程序面板里的 BitmapDrawable 是模糊灰层，要允许压透明。
+        if (bg is BitmapDrawable && !allowBitmap) return false
+        if (bg is ColorDrawable && !isNeutralBackdrop(bg.color)) return false
+        return runCatching {
+            bg.mutate()
+            val original = bg.alpha
+            // 整页大小的灰底（通讯录列表底）直接全透明，否则会留一层灰纱，
+            // 看起来比消息页暗。列表行/小卡片仍按滑杆保留底衬。
+            bg.alpha = if (fullPage && bg is ColorDrawable) 0 else minOf(original, backgroundAlpha())
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 灰阶都算「底衬」（白/浅灰/深灰/黑），纯彩色（红点、彩色标签/卡片）不动。
+     * 下拉小程序的灰色遮罩也由这里命中。
+     */
+    private fun isNeutralBackdrop(color: Int): Boolean {
+        if ((color ushr 24) == 0) return false
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        return maxOf(r, g, b) - minOf(r, g, b) <= 12
+    }
+
+    private fun removeTabWallpapers() {
+        tabWallpapers.entries.toList().forEach { (page, drawable) ->
+            runCatching {
+                if (page.background === drawable) {
+                    page.background = pageOriginalBackgrounds[page]
+                }
+                page.javaClass.getMethod("setFrostedEnabled", java.lang.Boolean.TYPE)
+                    .invoke(page, true)
+            }
+        }
+        tabWallpapers.clear()
+        tabWallpaperPaths.clear()
+        pageOriginalBackgrounds.clear()
+        frostedDisabledPages.clear()
+    }
+
+    private fun restorePageBackgrounds() {
+        originalBgAlpha.entries.toList().forEach { (view, alpha) ->
+            runCatching { view.background?.alpha = alpha }
+        }
+        clearedTints.entries.toList().forEach { (view, tint) ->
+            runCatching { view.backgroundTintList = tint }
+        }
+        originalImageAlpha.entries.toList().forEach { (view, alpha) ->
+            runCatching { view.imageAlpha = alpha }
+        }
+        originalBgAlpha.clear()
+        originalImageAlpha.clear()
+        clearedTints.clear()
+        appliedBackgrounds.clear()
+        lastBackgroundClearAt.clear()
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 聊天背景：写微信自己的 ChattingImageBGView
+    // ══════════════════════════════════════════════════════════
+    private fun ensureChatHooks() {
+        if (chatHooksInstalled) return
+        val app = HostApplication ?: return
+        runCatching {
+            val clazz = Class.forName(CHAT_BG_VIEW_CLASS, false, app.classLoader)
+            clazz.reflekt().constructors().forEach { ctor ->
+                ctor.hookAfter {
+                    val iv = thisObject as? ImageView ?: return@hookAfter
+                    if (activeThemeId.isEmpty()) return@hookAfter
+                    // 微信在构造后还会写默认/用户背景，这里延后覆盖一次。
+                    iv.post { runCatching { applyChatWallpaperTo(iv) } }
+                    iv.postDelayed({ runCatching { applyChatWallpaperTo(iv) } }, 600L)
+                }
+            }
+            chatHooksInstalled = true
+            WeLogger.d(TAG, "聊天背景 hook 已安装")
+        }.onFailure {
+            if (!chatHookFailureLogged) {
+                chatHookFailureLogged = true
+                WeLogger.w(TAG, "聊天背景 hook 安装失败（已降级）：${it.message}")
+            } else {
+                WeLogger.d(TAG, "聊天背景 hook 仍未安装：${it.message}")
+            }
+        }
+    }
+
+    /**
+     * 实时把新创建/复用的列表行背景压成半透明。
+     *
+     * 只在原 Drawable 上调 alpha，不替换对象、不动 padding，所以不会漂移；
+     * 在 setBackground* 的当帧生效，滑列表时不会再闪一下白底。
+     */
+    private fun ensureBackgroundAlphaHooks() {
+        if (backgroundHooksInstalled) return
+        backgroundHooksInstalled = true
+        for (name in arrayOf("setBackground", "setBackgroundDrawable")) {
+            runCatching {
+                View::class.reflekt()
+                    .firstMethodOrNull { this.name = name; parameterCount = 1 }
+                    ?.hookBefore {
+                        if (activeThemeId.isEmpty()) return@hookBefore
+                        val view = thisObject as? View ?: return@hookBefore
+                        if (!shouldTint(view)) {
+                            view.post {
+                                if (activeThemeId.isNotEmpty() && shouldTint(view)) {
+                                    convertBackground(view)
+                                }
+                            }
+                            return@hookBefore
+                        }
+                        val drawable = args.getOrNull(0) as? Drawable ?: return@hookBefore
+                        val original = drawable.alpha
+                        if (makeBackgroundTranslucent(drawable)) {
+                            if (!originalBgAlpha.containsKey(view)) {
+                                originalBgAlpha[view] = original
+                            }
+                            appliedBackgrounds[view] = drawable
+                        }
+                    }
+            }
+        }
+        // 下拉小程序的"模糊灰"可能是 RenderEffect 模糊；主题开启时直接去掉。
+        runCatching {
+            View::class.reflekt()
+                .firstMethodOrNull { name = "setRenderEffect"; parameterCount = 1 }
+                ?.hookBefore {
+                    if (activeThemeId.isEmpty()) return@hookBefore
+                    val view = thisObject as? View ?: return@hookBefore
+                    if (isLauncherContext(view.context)) args[0] = null
+                }
+        }
+        // 面板的模糊底图常是 ImageView.setImageBitmap，不是背景。
+        for (name in arrayOf("setImageDrawable", "setImageBitmap", "setImageResource")) {
+            runCatching {
+                ImageView::class.reflekt()
+                    .firstMethodOrNull { this.name = name; parameterCount = 1 }
+                    ?.hookAfter {
+                        if (activeThemeId.isEmpty()) return@hookAfter
+                        val view = thisObject as? ImageView ?: return@hookAfter
+                        if (!isLauncherContext(view.context)) return@hookAfter
+                        if (!isMiniProgramPanel(view)) return@hookAfter
+                        convertBackground(view)
+                        view.post {
+                            if (activeThemeId.isNotEmpty() && isMiniProgramPanel(view)) {
+                                convertBackground(view)
+                            }
+                        }
+                    }
+            }
+        }
+        for (name in arrayOf(
+            "setBackgroundColor",
+            "setBackgroundResource",
+            "setBackgroundTintList",
+        )) {
+            runCatching {
+                View::class.reflekt()
+                    .firstMethodOrNull { this.name = name; parameterCount = 1 }
+                    ?.hookAfter {
+                        if (activeThemeId.isEmpty()) return@hookAfter
+                        val view = thisObject as? View ?: return@hookAfter
+                        if (!shouldTint(view)) return@hookAfter
+                        convertBackground(view)
+                        // 行可能先 bind 后 attach，attach 后再补一次。
+                        view.post { if (activeThemeId.isNotEmpty()) convertBackground(view) }
+                    }
+            }
+        }
+        WeLogger.d(TAG, "列表行背景实时透明 hook 已安装")
+    }
+
+    private fun shouldTint(view: View): Boolean {
+        if (view is TextView || view is ProgressBar || view is SeekBar || view is CompoundButton) {
+            return false
+        }
+        if (!isLauncherContext(view.context)) return false
+        // 聊天页是 LauncherUI 里的 Fragment，不能按四个 Tab 的页面处理，
+        // 否则输入栏背景会被压透明、透出壁纸发灰。
+        if (isInChatView(view)) return false
+        if (view is ImageView) return isMiniProgramPanel(view)
+        return isInThemedPage(view) || isMiniProgramPanel(view)
+    }
+
+    private fun isInChatView(view: View): Boolean {
+        var current: View? = view
+        var depth = 0
+        while (current != null && depth++ < 40) {
+            val name = current.javaClass.name
+            if (name.contains("Chatting") ||
+                name.contains("ChatFooter") ||
+                name.contains("ChatBottom")
+            ) {
+                return true
+            }
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    private fun isInThemedPage(view: View): Boolean {
+        var current: View? = view
+        var depth = 0
+        while (current != null && depth++ < 40) {
+            if (tabWallpapers.containsKey(current)) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    /** 下拉小程序面板：它可能是页面的兄弟节点，不在四个 Tab 页内部。 */
+    private fun isMiniProgramPanel(view: View): Boolean {
+        var current: View? = view
+        var depth = 0
+        while (current != null && depth++ < 40) {
+            val name = current.javaClass.name
+            if (name.contains("AppBrand") ||
+                name.contains("MultiTask") ||
+                name.contains("TaskBar") ||
+                name.contains("Pulldown") ||
+                name.contains("PullDown") ||
+                name.contains("Recent")
+            ) {
+                return true
+            }
+            current = current.parent as? View
+        }
+        return false
+    }
+
+    private fun convertBackground(view: View) {
+        val panel = isMiniProgramPanel(view)
+        val dm = view.resources.displayMetrics
+        val screen = dm.widthPixels.toLong() * dm.heightPixels
+        val fullPage = view.width.toLong() * view.height >= screen / 2
+        val bg = view.background
+        if (bg != null) {
+            val original = bg.alpha
+            if (makeBackgroundTranslucent(bg, allowBitmap = panel, fullPage = fullPage)) {
+                if (!originalBgAlpha.containsKey(view)) originalBgAlpha[view] = original
+                appliedBackgrounds[view] = bg
+            }
+        }
+        val tint = view.backgroundTintList
+        if (tint != null && isNeutralBackdrop(tint.defaultColor)) {
+            if (!clearedTints.containsKey(view)) clearedTints[view] = tint
+            runCatching { view.backgroundTintList = null }
+        }
+        if (panel) {
+            // 面板的"模糊灰"也可能来自前景 Drawable 或 RenderEffect。
+            runCatching {
+                val fg = view.foreground
+                if (fg != null) makeBackgroundTranslucent(fg, allowBitmap = true)
+            }
+            // 大面积 ImageView 是模糊截图底图，隐藏它；小图标不受影响。
+            if (view is ImageView && view.drawable is BitmapDrawable) {
+                view.post {
+                    val area = view.width.toLong() * view.height
+                    val screen = view.resources.displayMetrics.run {
+                        widthPixels.toLong() * heightPixels
+                    }
+                    if (area >= screen / 4) {
+                        if (!originalImageAlpha.containsKey(view)) {
+                            originalImageAlpha[view] = view.imageAlpha
+                        }
+                        view.imageAlpha = 0
+                    }
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                runCatching {
+                    view.javaClass.methods
+                        .firstOrNull { it.name == "setRenderEffect" && it.parameterCount == 1 }
+                        ?.invoke(view, null)
+                }
+            }
+        }
+    }
+
+    /** 扫一遍 LauncherUI：把已经存在的下拉小程序面板背景也压成半透明。 */
+    private fun convertPanelBackgrounds(activity: Activity) {
+        val decor = activity.window?.decorView as? ViewGroup ?: return
+        var visited = 0
+        fun walk(v: View, depth: Int) {
+            if (visited++ > 8000 || depth > 40) return
+            if (v.javaClass.name == "com.tencent.mm.ui.FrostedContentView") {
+                runCatching {
+                    v.javaClass.getMethod("setFrostedEnabled", java.lang.Boolean.TYPE)
+                        .invoke(v, false)
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                runCatching {
+                    v.javaClass.methods
+                        .firstOrNull { it.name == "setRenderEffect" && it.parameterCount == 1 }
+                        ?.invoke(v, null)
+                }
+            }
+            if (shouldTint(v)) runCatching { convertBackground(v) }
+            if (v is ViewGroup) {
+                for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
+            }
+        }
+        walk(decor, 0)
+    }
+
+    /**
+     * 微信下拉小程序/多任务面板的灰色来自自绘的动态背景层，不是 View.background。
+     * 主题开启时直接跳过这些 onDraw，露出下面的主题壁纸。
+     */
+    private fun ensureOverlayHooks() {
+        if (overlayHooksInstalled) return
+        val app = HostApplication ?: return
+        for (className in arrayOf(
+            "com.tencent.mm.dynamicbackground.view.GradientColorBackgroundView",
+            "com.tencent.mm.plugin.taskbar.ui.TaskBarBottomView",
+            "com.tencent.mm.plugin.taskbar.ui.TaskBarContainer",
+            "com.tencent.mm.plugin.appbrand.widget.desktop.AppBrandDesktopContainerView",
+        )) {
+            runCatching {
+                val clazz = Class.forName(className, false, app.classLoader)
+                clazz.reflekt()
+                    .firstMethodOrNull { name = "onDraw"; parameterCount = 1 }
+                    ?.hookBefore {
+                        if (activeThemeId.isNotEmpty()) result = null
+                    }
+            }
+        }
+        overlayHooksInstalled = true
+        WeLogger.d(TAG, "动态背景/多任务灰层 hook 已安装")
+    }
+
+    /**
+     * 微信 8.0.80 的 Tab 页内容外面套了一层 `MMWeUIBounceView`（继承 [BOUNCE_VIEW_CLASS]）。
+     * 它不用 View.background，而是自己在 draw 里画 `setBgColor` 写入的 ColorDrawable（默认白色）。
+     * 这里把颜色 setter 在 LauncherUI 里统一改成 0，并主动清一次已写入的颜色。
+     */
+    private fun ensureBounceHooks() {
+        ensureOverlayHooks()
+        ensureBackgroundAlphaHooks()
+        if (bounceHooksInstalled) return
+        val app = HostApplication ?: return
+        runCatching {
+            val clazz = Class.forName(BOUNCE_VIEW_CLASS, false, app.classLoader)
+            for (name in BOUNCE_COLOR_SETTERS) {
+                runCatching {
+                    clazz.reflekt().firstMethodOrNull {
+                        this.name = name
+                        parameterCount = 1
+                    }?.hookBefore {
+                        if (activeThemeId.isEmpty()) return@hookBefore
+                        val view = thisObject as? View ?: return@hookBefore
+                        if (!isLauncherContext(view.context)) return@hookBefore
+                        if (args.getOrNull(0) is Int) args[0] = 0
+                    }
+                }
+            }
+            // 下拉小程序时会换成 Drawable 背景（灰色遮罩），颜色 setter 拦不到。
+            for (name in BOUNCE_DRAWABLE_SETTERS) {
+                runCatching {
+                    clazz.reflekt().firstMethodOrNull {
+                        this.name = name
+                        parameterCount = 1
+                    }?.hookBefore {
+                        if (activeThemeId.isEmpty()) return@hookBefore
+                        val view = thisObject as? View ?: return@hookBefore
+                        if (!isLauncherContext(view.context)) return@hookBefore
+                        val drawable = args.getOrNull(0) as? Drawable ?: return@hookBefore
+                        makeBackgroundTranslucent(drawable, allowBitmap = true)
+                    }
+                }
+            }
+            bounceHooksInstalled = true
+            WeLogger.d(TAG, "下拉回弹背景 hook 已安装")
+        }.onFailure {
+            WeLogger.d(TAG, "下拉回弹背景 hook 安装失败：${it.message}")
+        }
+    }
+
+    private fun clearBounceBackground(page: ViewGroup) {
+        val bounce = findBounceView(page) ?: return
+        for (name in BOUNCE_COLOR_SETTERS) {
+            runCatching {
+                bounce.javaClass.getMethod(name, Integer.TYPE).invoke(bounce, 0)
+            }
+        }
+    }
+
+    /** 沿 ContextWrapper 链确认是不是 LauncherUI（View.context 可能被主题包装）。 */
+    private fun isLauncherContext(context: Context?): Boolean {
+        var current: Context? = context
+        var depth = 0
+        while (current != null && depth++ < 8) {
+            if (current.javaClass.name == LAUNCHER_UI_CLASS) return true
+            current = (current as? ContextWrapper)?.baseContext
+        }
+        return false
+    }
+
+    private fun findBounceView(page: ViewGroup): View? {
+        var found: View? = null
+        fun walk(v: View, depth: Int) {
+            if (found != null || depth > 8) return
+            if (v.javaClass.name == "com.tencent.mm.ui.widget.pulldown.MMWeUIBounceView") {
+                found = v
+                return
+            }
+            if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
+        }
+        walk(page, 0)
+        return found
+    }
+
+    private fun applyChatBackground(activity: Activity) {
+        val decor = activity.window?.decorView as? ViewGroup ?: return
+        var visited = 0
+        fun walk(v: View, depth: Int) {
+            if (visited >= 6000 || depth > 40) return
+            visited++
+            if (v is ImageView && v.javaClass.name == CHAT_BG_VIEW_CLASS) {
+                runCatching { applyChatWallpaperTo(v) }
+                return
+            }
+            if (v is ViewGroup) {
+                for (i in 0 until v.childCount) walk(v.getChildAt(i), depth + 1)
+            }
+        }
+        walk(decor, 0)
+    }
+
+    private fun applyChatWallpaperTo(iv: ImageView) {
+        if (activeThemeId.isEmpty()) return
+        val theme = currentTheme() ?: return
+        val src = wallpaperSource()
+        if (!chatBackgrounds.containsKey(iv)) {
+            chatBackgrounds[iv] = ChatBgBackup(iv.drawable, iv.imageAlpha)
+            WeLogger.d(TAG, "聊天背景已接管")
+        }
+        val bitmap = wallpaperBitmapFor(src)
+        if (bitmap != null) iv.setImageBitmap(bitmap)
+        else iv.setImageDrawable(ColorDrawable(theme.previewColor.toInt()))
+        iv.imageAlpha = 255
+    }
+
+    private fun restoreChatBackgrounds() {
+        chatBackgrounds.entries.toList().forEach { (iv, backup) ->
+            runCatching {
+                iv.setImageDrawable(backup.drawable)
+                iv.imageAlpha = backup.imageAlpha
+            }
+        }
+        chatBackgrounds.clear()
+    }
+
+    /**
+     * 恢复默认：清空主题 id、还原壁纸层/页面原背景/聊天背景、还原应用主题前的气泡文件。
      *
      * 三件事必须一起做，缺一条就会出现「点了恢复默认，气泡还在」：
      * 1. 还原气泡文件（用户原本没有则删掉主题气泡）；
      * 2. 把当前已经渲染出来的气泡 View 换回原背景；
-     * 3. 移除壁纸层、还原系统栏颜色。
+     * 3. 移除四 Tab 壁纸层、还原被清空的页面背景与聊天背景。
      */
     private fun restoreDefault() {
         try {
@@ -624,10 +1200,11 @@ object ThemeStore : ClickableFeature() {
             // 还需要重绑一次让「自定义消息气泡」把它们自己的气泡重新贴上去。
             WeChatMessageViewApi.refreshChattingList()
             activeThemeId = ""
-            liveActivities().forEach { act ->
-                runCatching { removeWallpaper(act) }
-                runCatching { restoreWindow(act) }
-            }
+            removeTabWallpapers()
+            restorePageBackgrounds()
+            restoreChatBackgrounds()
+            wallpaperBitmapPath = null
+            wallpaperBitmap = null
         } catch (e: Throwable) {
             WeLogger.e(TAG, "restoreDefault 异常", e)
         }
@@ -654,13 +1231,21 @@ object ThemeStore : ClickableFeature() {
         emptyList()
     }
 
-    /** 更新所有存活页面已挂载壁纸层的透明度（滑杆即时生效）。 */
+    /**
+     * 滑杆即时生效：只改控件底衬的 alpha，壁纸与聊天背景始终保持不透明。
+     * 滑杆越高 → 底衬越透明 → 壁纸越明显。
+     */
     private fun updateAlphaOnLive(alpha: Float) {
-        liveActivities().forEach { act ->
-            try {
-                val decor = act.window?.decorView as? ViewGroup ?: return@forEach
-                (decor.findViewWithTag<FrameLayout>(WALLPAPER_TAG)?.getChildAt(0) as? ImageView)?.alpha = alpha
-            } catch (e: Throwable) { WeLogger.d(TAG, "更新透明度失败：${e.message}") }
+        val bgAlpha = 255 - (alpha.coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255)
+        tabWallpapers.values.forEach { drawable ->
+            runCatching { drawable.alpha = 255 }
+        }
+        appliedBackgrounds.entries.toList().forEach { (view, drawable) ->
+            val original = originalBgAlpha[view] ?: 255
+            runCatching { drawable.alpha = minOf(original, bgAlpha) }
+        }
+        chatBackgrounds.keys.forEach { iv ->
+            runCatching { iv.imageAlpha = 255 }
         }
     }
 
@@ -740,7 +1325,7 @@ object ThemeStore : ClickableFeature() {
                                 .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            Text("六款卡通主题：一键应用全局沉浸壁纸与对应气泡", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("六款卡通主题：一键应用主页四页与聊天背景壁纸，并匹配对应气泡", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(6.dp))
                             builtinThemes.forEach { theme ->
                                 ThemeRow(
@@ -757,7 +1342,7 @@ object ThemeStore : ClickableFeature() {
                             Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "壁纸透明度 ${opacity}%",
+                                    "界面透明度 ${opacity}%",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(end = 8.dp)

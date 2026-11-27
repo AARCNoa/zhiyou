@@ -458,7 +458,7 @@ object WePacketHelper : ApiFeature(), IResolveDex {
                         invokeMethod("g", nativeNetScene, superclass = true)
                     }
 
-                    WeLogger.i(TAG, "[$cgiId] native mode: successfully registered listener and added to queue")
+                    WeLogger.d(TAG, "[$cgiId] native mode: successfully registered listener and added to queue")
                 } else {
                     // 通用发包模式
                     val bytes = ProtoJsonBuilder.makeBytes(jsonObj)

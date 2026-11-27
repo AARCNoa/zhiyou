@@ -1,9 +1,12 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -60,12 +63,16 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.concurrent.atomic.AtomicBoolean
+import java.lang.ref.WeakReference
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import dev.ujhhgtg.reflekt.reflekt
 import com.AARCNoa.zhiyou.ai.AiSuggestEngine
 import com.AARCNoa.zhiyou.ai.profileCountsText
 import com.AARCNoa.zhiyou.features.api.core.WeMessageApi
+import com.AARCNoa.zhiyou.features.api.ui.WeCurrentConversationApi
+import com.AARCNoa.zhiyou.features.items.beautify.HomeSidePanelFeature
 import com.AARCNoa.zhiyou.ui.style.WxPalette
 import com.AARCNoa.zhiyou.ui.utils.LifecycleOwnerProvider
 import com.AARCNoa.zhiyou.ui.utils.dpToPx
@@ -74,6 +81,7 @@ import com.AARCNoa.zhiyou.ui.utils.XposedLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.setLifecycleOwner
 import com.AARCNoa.zhiyou.ui.utils.theme.ModuleTheme
 import com.AARCNoa.zhiyou.utils.WeLogger
+import com.AARCNoa.zhiyou.utils.android.getSystemService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,6 +104,10 @@ import kotlinx.coroutines.withContext
 object AiSuggestOverlay {
 
     private const val TAG = "AiSuggestOverlay"
+    private const val LAUNCHER = "com.tencent.mm.ui.LauncherUI"
+
+    /** 离开聊天页的兜底检查间隔：只在浮层显示期间跑，收起即停。 */
+    private const val PAGE_WATCH_MS = 500L
 
     /** 聊天页根布局与标题栏：用来把卡片顶到标题下方。类名不会被混淆（库类 / 微信稳定类）。 */
     private const val CHATTING_LAYOUT_CLASS = "com.tencent.mm.pluginsdk.ui.chat.ChattingUILayout"
@@ -120,6 +132,13 @@ object AiSuggestOverlay {
     private var observer: LifecycleEventObserver? = null
     private var lifecycleOwner: XposedLifecycleOwner? = null
 
+    /** 「还在聊天页吗」的兜底检查；浮层收起时停掉。 */
+    @Volatile
+    private var pageWatch: Handler? = null
+
+    /** 当前聊天页的输入栏：只看它是否还显示，比每次扫整棵 decor 树便宜。 */
+    private var chatPageRef: WeakReference<View>? = null
+
     /**
      * 当前浮层属于哪个会话。
      *
@@ -128,6 +147,9 @@ object AiSuggestOverlay {
      * 不比对会话的话，在 A 会话看建议时 B 会话来一条消息，浮层就被关掉了。
      */
     private var currentTalker: String? = null
+
+    /** 双击刷新代号：浮层显示期间再次双击时 +1，卡片据此重新拉一批建议。 */
+    private val refreshTick = mutableStateOf(0)
 
     /**
      * 浮层代号：每次挂载 / 收起都 +1。
@@ -161,6 +183,20 @@ object AiSuggestOverlay {
     }
 
     /**
+     * 浮层已经显示时，再次双击刷新一批建议（与卡片右上角 ↻ 等价）。
+     *
+     * 只有建议卡片算数；提示胶囊（[currentTalker] 为空）返回 false，
+     * 交给调用方按正常双击处理。
+     */
+    fun refreshCurrent(): Boolean {
+        val showing = synchronized(lock) { currentTalker != null && cardView != null }
+        if (!showing) return false
+        refreshTick.value++
+        WeLogger.d(TAG, "双击刷新建议")
+        return true
+    }
+
+    /**
      * 收起浮层。**必须主线程移除 View**。
      *
      * `dismiss()` 有两个调用方：界面上的 ✕ / 选中建议（主线程），以及
@@ -169,6 +205,7 @@ object AiSuggestOverlay {
      * 但下面的引用已经置空 —— 之后任何一次 `dismiss()` 都找不到它，浮层就再也关不掉。
      */
     fun dismiss() {
+        stopPageWatch()
         // 字段在锁里一次性取走并清空：只可能拿到某一对完整的 (card, owner)，
         // 不会出现「销毁了新卡的 owner、留下新卡」的错配。
         val snapshot = synchronized(lock) {
@@ -179,6 +216,7 @@ object AiSuggestOverlay {
             observer = null
             host = null
             currentTalker = null
+            chatPageRef = null
             current
         }
 
@@ -309,6 +347,7 @@ object AiSuggestOverlay {
         title: String,
         memoryCount: Int = 0,
         tagCount: Int = 0,
+        footer: View? = null,
     ) {
         dismiss()
 
@@ -338,6 +377,7 @@ object AiSuggestOverlay {
                         title = title,
                         memoryCount = memoryCount,
                         tagCount = tagCount,
+                        refreshSignal = refreshTick.value,
                         onDismiss = { dismiss() },
                     )
                 }
@@ -360,7 +400,54 @@ object AiSuggestOverlay {
             lifecycleOwner = owner
             this.observer = observer
             cardView = card
+            chatPageRef = footer?.let { WeakReference(it) }
         }
+        startPageWatch(activity)
+    }
+
+    /**
+     * 浮层显示期间盯着「还在不在聊天页」。
+     *
+     * 聊天页是 LauncherUI 里的 Fragment，按返回回首页**不会**触发 Activity 的 pause，
+     * 生命周期观察收不到，卡片会一直挂在首页上。这里只在这张卡片存在时每 500ms 判一次，
+     * 收起即停，不会常驻。
+     */
+    private fun startPageWatch(activity: Activity) {
+        stopPageWatch()
+        val handler = Handler(Looper.getMainLooper())
+        pageWatch = handler
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                if (pageWatch !== handler) return
+                val leftChat = activity.isFinishing || activity.isDestroyed || chatPageGone(activity)
+                if (leftChat) {
+                    WeLogger.d(TAG, "已离开聊天页，收起建议")
+                    dismiss()
+                    return
+                }
+                handler.postDelayed(this, PAGE_WATCH_MS)
+            }
+        }, PAGE_WATCH_MS)
+    }
+
+    /**
+     * 聊天页是否已经不在：优先看输入栏是否还显示（O(1)），拿不到引用时再退回首页判定。
+     *
+     * 只看 `isShown` / `isAttachedToWindow`：按返回后 Fragment 的 View 被移除，两个都会变 false；
+     * 切到别的会话时 Footer 仍附着，由 `onAttachedToWindow` 那条路径收起，不在这里误判。
+     */
+    private fun chatPageGone(activity: Activity): Boolean {
+        val footer = chatPageRef?.get()
+        if (footer != null) {
+            return !footer.isShown || !footer.isAttachedToWindow || footer.height <= 0
+        }
+        return activity.javaClass.name == LAUNCHER &&
+            runCatching { HomeSidePanelFeature.isHomePageActive(activity) }.getOrDefault(false)
+    }
+
+    private fun stopPageWatch() {
+        pageWatch?.removeCallbacksAndMessages(null)
+        pageWatch = null
     }
 
     /**
@@ -369,7 +456,7 @@ object AiSuggestOverlay {
      * 位置与建议卡片相同 —— 用户双击后第一眼就在那个位置找反馈；返回一句 Toast 会
      * 出现在屏幕底部，离视线焦点太远，也容易被当成系统提示。
      */
-    fun showNotice(activity: Activity, text: String) {
+    fun showNotice(activity: Activity, text: String, footer: View? = null) {
         dismiss()
         val decor = activity.window?.decorView as? ViewGroup ?: return
         runCatching { decor.setLifecycleOwner(LifecycleOwnerProvider.getOrCreate(activity)) }
@@ -397,8 +484,10 @@ object AiSuggestOverlay {
             lifecycleOwner = owner
             observer = null
             cardView = view
+            chatPageRef = footer?.let { WeakReference(it) }
             viewToken
         }
+        startPageWatch(activity)
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
             { if (synchronized(lock) { viewToken } == token) dismiss() },
             2_600L,
@@ -442,21 +531,25 @@ private fun SuggestCard(
     title: String,
     memoryCount: Int,
     tagCount: Int,
+    refreshSignal: Int,
     onDismiss: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var suggestion by remember { mutableStateOf(AiSuggestEngine.Suggestion()) }
-    var attempt by remember { mutableStateOf(0) }
+    var retry by remember { mutableStateOf(0) }
 
-    // 每次生成一枚「还需要结果」的标记：卡片被关掉、或点了刷新换一批时置 false。
+    // 卡片上的 ↻ 与「浮层显示时再次双击」共用同一个代号：任一变化都重新拉一批。
+    val generation = refreshSignal + retry
+
+    // 每次生成一枚「还需要结果」的标记：卡片被关掉、或换了新一代时置 false。
     // 引擎在每轮开始与收口前各查一次 —— 请求本身是阻塞调用，取消协程只在它返回后才生效，
     // 没有这个标记的话，关掉卡片之后模型仍会把剩下几轮跑满（单轮 45s、总共 8 分钟）。
-    val alive = remember(attempt) { AtomicBoolean(true) }
+    val alive = remember(generation) { AtomicBoolean(true) }
     DisposableEffect(alive) {
         onDispose { alive.set(false) }
     }
 
-    LaunchedEffect(attempt) {
+    LaunchedEffect(generation) {
         // 每次重新生成（含点刷新）都先收回胶囊，出结果再展开：动作和「在想」是一回事。
         expanded = false
         val result = withContext(Dispatchers.IO) {
@@ -555,13 +648,29 @@ private fun SuggestCard(
                         fontSize = 11.sp,
                         color = WxPalette.textTertiary(),
                     )
-                    Spacer(Modifier.weight(1f))
+                    // 与朋友圈「帮我评论」同一行文案：有档案才显示规模（记忆 / 标签条数）。
+                    // 和名字、标题挤同一行：放在「· 建议」之后、操作键之前，占满剩余宽度，不够就省略。
+                    val counts = profileCountsText(memoryCount, tagCount)
+                    if (counts.isNotEmpty()) {
+                        Text(
+                            text = counts,
+                            fontSize = 10.sp,
+                            color = WxPalette.textTertiary(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 8.dp),
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
                     Text(
                         text = "↻",
                         fontSize = 14.sp,
                         color = WxPalette.textSecondary(),
                         modifier = Modifier
-                            .clickable { attempt++ }
+                            .clickable { retry++ }
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                     // 与关闭键拉开距离：两个图标挨在一起时很容易点错。
@@ -573,16 +682,6 @@ private fun SuggestCard(
                         modifier = Modifier
                             .clickable { onDismiss() }
                             .padding(horizontal = 2.dp, vertical = 2.dp),
-                    )
-                }
-                // 与朋友圈「帮我评论」同一行文案：有档案才显示规模（记忆 / 标签条数）。
-                val counts = profileCountsText(memoryCount, tagCount)
-                if (counts.isNotEmpty()) {
-                    Text(
-                        text = counts,
-                        fontSize = 10.sp,
-                        color = WxPalette.textTertiary(),
-                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             } else {
@@ -598,7 +697,7 @@ private fun SuggestCard(
                     talker = talker,
                     suggestion = suggestion,
                     maxHeight = maxContentHeight,
-                    onRetry = { attempt++ },
+                    onRetry = { retry++ },
                     onSent = onDismiss,
                 )
             }
@@ -759,6 +858,7 @@ private fun ReadBlock(text: String) {
     }
 }
 
+/** 点整行 = 直接发送；点右侧「编辑」= 放进输入框自己改一改再发。 */
 @Composable
 private fun ReplyRow(reply: String, talker: String, onSent: () -> Unit) {
     var sending by remember { mutableStateOf(false) }
@@ -783,15 +883,50 @@ private fun ReplyRow(reply: String, talker: String, onSent: () -> Unit) {
                     }
                 }
             }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = reply,
             fontSize = 14.sp,
             color = WxPalette.textPrimary(),
-            modifier = Modifier.alpha(if (sending) 0.5f else 1f),
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 6.dp)
+                .alpha(if (sending) 0.5f else 1f),
+        )
+        Text(
+            text = "编辑",
+            // 与朋友圈「复制」同一观感：11sp 的三级文字色，不像主链接那样抢眼。
+            fontSize = 11.sp,
+            color = WxPalette.textTertiary(),
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(enabled = !sending) {
+                    if (putReplyIntoInput(AiSuggestEngine.oneLine(reply))) onSent()
+                }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
         )
     }
+}
+
+/**
+ * 把建议放进当前聊天页的输入框并弹键盘（与「一键撤回并重新编辑」同一条路径：
+ * lastText → setMode(1) → getToSendEt 拿到真正的输入框 View）。拿不到聊天页时返回 false。
+ */
+private fun putReplyIntoInput(text: String): Boolean = runCatching {
+    val chatFooter = WeCurrentConversationApi.chatFooter ?: return false
+    chatFooter.lastText = text
+    chatFooter.setMode(1)
+    val etView = chatFooter.reflekt().invokeMethod("getToSendEt")!!
+        .reflekt().firstMethod { returnType = View::class }.invoke()!! as View
+    etView.requestFocus()
+    val im = etView.context.getSystemService<InputMethodManager>()
+    etView.post { im.showSoftInput(etView, 0) }
+    true
+}.getOrElse {
+    WeLogger.w("AiSuggestOverlay", "填入输入框失败", it)
+    false
 }
 
 /**

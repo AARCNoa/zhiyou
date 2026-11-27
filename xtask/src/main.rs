@@ -352,10 +352,14 @@ fn task_configure() -> Result<()> {
     let ndk_bin_dir = find_ndk_bin_dir(&android_home)?;
 
     // Derive the NDK sysroot from the bin dir (e.g. .../bin → .../sysroot).
+    // Windows 的 Path::display() 会产生反斜杠，写进 TOML 双引号串时 `\s` 是非法转义，
+    // cargo 会直接拒绝解析整个 config.toml，所以这里统一转成正斜杠。
     let ndk_sysroot = Path::new(&ndk_bin_dir)
         .parent()
         .unwrap()
-        .join("sysroot");
+        .join("sysroot")
+        .to_string_lossy()
+        .replace('\\', "/");
 
     // On Windows the NDK ships `.cmd` wrappers for the clang binaries.
     let ext = if cfg!(target_os = "windows") {
@@ -388,7 +392,7 @@ fn task_configure() -> Result<()> {
         // 显式追加带 API 版本的 --target 覆盖默认 target，并保留 -D 兜底。
         let bindgen_args = format!(
             "--sysroot={} --target={}{MIN_SDK} -D__ANDROID_API__={MIN_SDK}",
-            ndk_sysroot.display(),
+            ndk_sysroot,
             spec.clang_prefix,
         );
         out.push_str(&format!("CC_{k} = \"{cc}\"\n", k = spec.env_key));
@@ -473,9 +477,9 @@ fn task_build_native(abi_args: &[String]) -> Result<()> {
         let so_src = root
             .join("target")
             .join(spec.cargo_triple)
-            .join("release/libwekit_native.so");
+            .join("release/libzhiyou_native.so");
         let so_dst_dir = jni_libs_dir(&root).join(spec.android_name);
-        let so_dst = so_dst_dir.join("libwekit_native.so");
+        let so_dst = so_dst_dir.join("libzhiyou_native.so");
 
         fs::create_dir_all(&so_dst_dir)
             .with_context(|| format!("could not create {}", so_dst_dir.display()))?;

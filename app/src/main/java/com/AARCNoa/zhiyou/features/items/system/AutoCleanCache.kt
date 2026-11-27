@@ -1,6 +1,5 @@
 package com.AARCNoa.zhiyou.features.items.system
 
-import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import androidx.activity.ComponentActivity
 import com.AARCNoa.zhiyou.features.core.ClickableFeature
 import com.AARCNoa.zhiyou.features.core.Feature
@@ -90,30 +89,8 @@ object AutoCleanCache : ClickableFeature() {
             try {
                 WeLogger.d(TAG, "deleting $path")
                 if (path.exists()) {
-                    // 保留公开目录下的 upload 子目录，避免 REST API 上传临时文件被误删
-                    val uploadDir = path / KnownPaths.PUBLIC_DIR / "upload"
-                    if (uploadDir.exists()) {
-                        // 遍历删除除 upload 之外的所有内容
-                        path.toFile().listFiles()?.forEach { file ->
-                            if (file.name == KnownPaths.PUBLIC_DIR) {
-                                // 对该目录，保留 upload 子目录
-                                file.listFiles()?.forEach { wcxChild ->
-                                    if (wcxChild.name != "upload") {
-                                        val childPath = wcxChild.toPath()
-                                        totalDeletedBytes += calculateSize(childPath)
-                                        childPath.deleteRecursively()
-                                    }
-                                }
-                            } else {
-                                val childPath = file.toPath()
-                                totalDeletedBytes += calculateSize(childPath)
-                                childPath.deleteRecursively()
-                            }
-                        }
-                    } else {
-                        totalDeletedBytes += calculateSize(path)
-                        path.deleteRecursively()
-                    }
+                    totalDeletedBytes += calculateSize(path)
+                    path.deleteRecursively()
                 }
             } catch (e: Exception) {
                 WeLogger.w(TAG, "exception during cleaning: ${path.fileName}, ${e.message}")

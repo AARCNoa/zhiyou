@@ -13,6 +13,12 @@ import com.AARCNoa.zhiyou.dexkit.dsl.DexConstructorDelegate
 import com.AARCNoa.zhiyou.dexkit.dsl.DexMethodDelegate
 import com.AARCNoa.zhiyou.utils.HookAction
 import com.AARCNoa.zhiyou.utils.WeLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.luckypray.dexkit.DexKitBridge
 import java.lang.reflect.Executable
 import kotlin.reflect.KClass
@@ -99,8 +105,31 @@ abstract class BaseFeature {
     var isActive: Boolean = false
         private set
 
+    private val featureScopeLock = Any()
+    private var featureScope: CoroutineScope? = null
+
+    /** 功能持有的后台任务；停用时统一取消，避免延时动作越过开关继续执行。 */
+    protected fun featureLaunch(block: suspend CoroutineScope.() -> Unit): Job? =
+        synchronized(featureScopeLock) {
+            if (!isActive) return@synchronized null
+            val scope = featureScope
+                ?: CoroutineScope(SupervisorJob() + Dispatchers.IO).also { featureScope = it }
+            scope.launch(block = block)
+        }
+
+    private fun cancelFeatureTasks() = synchronized(featureScopeLock) {
+        featureScope?.cancel()
+        featureScope = null
+    }
+
     fun enable() {
         if (isActive) return
+        // 首次安装/缓存失效时，锚点还没解析出来，此时 onEnable 里的 hook 会被静默跳过，
+        // 但 isActive 仍会被置真，后台补适配后也不会再启动。这里直接拒绝，等解析完成后再启动。
+        if (FeaturesLoader.isAwaitingDexResolution(this)) {
+            WeLogger.d(TAG, "defer enabling $displayName: dex resolution in progress")
+            return
+        }
 
         runCatching {
             isActive = true
@@ -109,6 +138,7 @@ abstract class BaseFeature {
             WeLogger.e(TAG, "failed to enable feature $displayName", e)
             // ensure transaction is fully discarded
             unhookAll()
+            cancelFeatureTasks()
             isActive = false
         }
     }
@@ -119,6 +149,7 @@ abstract class BaseFeature {
         runCatching {
             isActive = false
             unhookAll()
+            cancelFeatureTasks()
             onDisable()
         }.onFailure { e ->
             // unhookAll() 已经执行，运行时 hook 确实摘掉了；这里不能把 isActive 写回 true，

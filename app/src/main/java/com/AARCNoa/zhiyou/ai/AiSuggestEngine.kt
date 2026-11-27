@@ -13,7 +13,7 @@ import kotlinx.serialization.json.jsonPrimitive
  *
  * **这是一个小 agent，不是一次问答**：
  *
- * - 档案里的记忆只带标题，且**默认只带最近半年 ∪ 最新 30 条、最多 300 条**
+ * - 档案里的记忆只带标题，且**默认只带最近 100 条**
  *   （全量上限 2000 条约 30k token，多数对话用不到，却每次请求都要付）；
  * - 模型判断「需要知道某件事的经过」时，自己调 `read_memory` 批量读详情；
  *   对方提到更早的事、默认窗口里没有时，调 `load_earlier_memories` 一次取回更早的标题；
@@ -117,7 +117,7 @@ object AiSuggestEngine {
         } else {
             "今天（" + AiPrompts.dateOf(slice.window.fromSec) + "）"
         }
-        // 默认只注入最近半年，交付标记让「取更早的记忆」不会把同一批条目灌两遍。
+        // 默认只注入最近 100 条，交付标记让「取更早的记忆」不会把同一批条目灌两遍。
         val memoryPager = AiMemoryView.pager(profile)
 
         val system = AiPrompts.suggestSystem(profile, reportEvent = reportEvent)

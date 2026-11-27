@@ -6,6 +6,7 @@ import android.app.RemoteAction
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.os.ResultReceiver
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import com.AARCNoa.zhiyou.ui.icons.OutlinedIcons
 import com.AARCNoa.zhiyou.ui.utils.theme.ModuleTheme
+import com.AARCNoa.zhiyou.utils.WeLogger
 
 @Keep
 class PipVoipActivity : ComponentActivity() {
@@ -77,6 +79,12 @@ class PipVoipActivity : ComponentActivity() {
             ResultReceiver::class.java,
         )!!
         current = this
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            WeLogger.w(TAG, "system does not support picture-in-picture, finish")
+            closing = true
+            finish()
+            return
+        }
         groupCall = intent.getBooleanExtra(EXTRA_GROUP_CALL, false)
         limited = intent.getBooleanExtra(EXTRA_LIMITED, false)
         canControl = intent.getBooleanExtra(EXTRA_CAN_CONTROL, false)
@@ -88,7 +96,14 @@ class PipVoipActivity : ComponentActivity() {
             }
         }
 
-        enterPictureInPictureMode(updatePipParams())
+        val entered = runCatching { enterPictureInPictureMode(updatePipParams()) }
+            .onFailure { WeLogger.w(TAG, "enterPictureInPictureMode failed", it) }
+            .getOrDefault(false)
+        if (!entered) {
+            WeLogger.w(TAG, "enterPictureInPictureMode returned false, finish")
+            closing = true
+            finish()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -142,6 +157,11 @@ class PipVoipActivity : ComponentActivity() {
         updatePipParams()
     }
 
+    private fun applyPipParams(params: PictureInPictureParams) {
+        runCatching { setPictureInPictureParams(params) }
+            .onFailure { WeLogger.w(TAG, "setPictureInPictureParams failed", it) }
+    }
+
     private fun updatePipParams(): PictureInPictureParams {
         val actions = mutableListOf<RemoteAction>()
         if (limited && !canControl) {
@@ -150,7 +170,7 @@ class PipVoipActivity : ComponentActivity() {
                 .setAspectRatio(Rational(16, 9))
                 .setActions(actions)
                 .build()
-            setPictureInPictureParams(params)
+            applyPipParams(params)
             return params
         }
         actions += listOf(
@@ -182,7 +202,7 @@ class PipVoipActivity : ComponentActivity() {
             .setAspectRatio(Rational(16, 9))
             .setActions(actions)
             .build()
-        setPictureInPictureParams(params)
+        applyPipParams(params)
         return params
     }
 
@@ -252,6 +272,8 @@ class PipVoipActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "PipVoipActivity"
+
         const val EXTRA_RESULT_RECEIVER = "pip_voip_result_receiver"
         const val EXTRA_GROUP_CALL = "pip_voip_group_call"
         const val EXTRA_MIC_MUTED = "pip_voip_mic_muted"

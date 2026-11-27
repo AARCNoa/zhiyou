@@ -45,8 +45,9 @@ import com.AARCNoa.zhiyou.utils.serialization.XmlUtils.extractXmlTag
 import com.AARCNoa.zhiyou.utils.strings.isGroupChatWxId
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.concurrent.thread
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 @SuppressLint("DiscouragedApi")
 @Feature(name = "自动抢红包", categories = ["红包与支付"], description = "监听消息并自动拆开红包")
@@ -147,8 +148,8 @@ object AutoOpenRedPackets : ClickableFeature(), WeDatabaseListenerApi.IInsertLis
                     retryCountMap[sendId] = retries + 1
                     val retryDelay = Random.nextLong(200, 1000)
                     WeLogger.w(TAG, "receive failed (retcode=$retCode), retry ${retries + 1}/$MAX_RETRIES after ${retryDelay}ms (sendId=$sendId)")
-                    thread(name = "RetryReceiveRedPacket") {
-                        Thread.sleep(retryDelay)
+                    featureLaunch {
+                        delay(retryDelay)
                         try {
                             val req = classReceiveLuckyMoney.clazz.createInstance(
                                 info.msgType, info.channelId, info.sendId, info.nativeUrl,
@@ -173,7 +174,7 @@ object AutoOpenRedPackets : ClickableFeature(), WeDatabaseListenerApi.IInsertLis
 
             WeLogger.i(TAG, "unpack request finished, sending open request ($sendId)")
 
-            thread(name = "OpenRedPacketThread") {
+            featureLaunch {
                 try {
                     val openReq = classOpenLuckyMoney.clazz.createInstance(
                         info.msgType, info.channelId, info.sendId, info.nativeUrl,
@@ -245,11 +246,11 @@ object AutoOpenRedPackets : ClickableFeature(), WeDatabaseListenerApi.IInsertLis
                 // 发送放到独立线程：本回调跑在主线程，而冷启动阶段 DexKit 可能还没定位到
                 // 发送组件，awaitSendReady 需要等待最多数秒，绝不能阻塞微信 UI。
                 // 旧实现直接调 sendText 且丢弃返回值，失败时仍打印「sent」，问题无法从日志定位。
-                thread(name = "WCX-RedPacketReply") {
+                featureLaunch {
                     try {
                         if (!WeMessageApi.awaitSendReady(6_000L)) {
                             WeLogger.e(TAG, "red packet auto-reply skipped: send components not ready (talker=$replyTalker)")
-                            return@thread
+                            return@featureLaunch
                         }
                         if (WeMessageApi.sendText(replyTalker, replyText)) {
                             WeLogger.i(TAG, "sent red packet auto-reply to $replyTalker")
@@ -411,11 +412,11 @@ object AutoOpenRedPackets : ClickableFeature(), WeDatabaseListenerApi.IInsertLis
                 delay
             }
 
-            thread(name = "ReceiveRedPacketThread") {
+            featureLaunch {
                 try {
                     if (delayTime > 0) {
                         WeLogger.i(TAG, "started delaying for ${delayTime}ms (sendId=$sendId)")
-                        Thread.sleep(delayTime)
+                        delay(delayTime)
                     }
 
                     WeLogger.i(
@@ -429,6 +430,8 @@ object AutoOpenRedPackets : ClickableFeature(), WeDatabaseListenerApi.IInsertLis
 
                     WeNetSceneApi.sendNetScene(req)
                     WeLogger.i(TAG, "sent receive request (sendId=$sendId)")
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Throwable) {
                     WeLogger.e(TAG, "failed to send receive request (sendId=$sendId)", e)
                     currentRedPacketMap.remove(sendId)

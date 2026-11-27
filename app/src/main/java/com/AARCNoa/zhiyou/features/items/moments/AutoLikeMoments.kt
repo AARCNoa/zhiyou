@@ -42,7 +42,10 @@ import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.concurrent.thread
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @Feature(
     name = "自动点赞",
@@ -65,7 +68,9 @@ object AutoLikeMoments : AutoMomentsBase(),
 
     private val handledSnsIds = ConcurrentHashMap.newKeySet<String>()
     private val lastAttemptAt = ConcurrentHashMap<String, Long>()
-    private val actionLock = Any()
+    private val actionMutex = Mutex()
+    private val scanLock = Any()
+    private var scanJob: Job? = null
 
     @Volatile
     private var lastActionSentAt = 0L
@@ -84,6 +89,7 @@ object AutoLikeMoments : AutoMomentsBase(),
     override fun onDisable() {
         WeDatabaseListenerApi.removeListener(this)
         AutoRefresh.removeListener(this)
+        clearTimelineObservers()
     }
 
     /** Called by [AutoRefresh] on every scheduled refresh cycle. */
@@ -266,22 +272,31 @@ object AutoLikeMoments : AutoMomentsBase(),
 
     private fun scanCachedTargetMoments() {
         if (momentsUseWhitelist && momentsWhitelist.isEmpty()) return
-        thread(name = "ScanMomentsToAutoLikeThread") {
-            WeLogger.d(TAG, "scanCachedTargetMoments: scanning (useWhitelist=$momentsUseWhitelist)")
-            val snsIds = runCatching {
-                queryCachedTargetSnsIds()
-            }.onFailure {
-                WeLogger.w(TAG, "failed to query cached target moments", it)
-            }.getOrDefault(emptyList())
+        synchronized(scanLock) {
+            if (scanJob?.isActive == true) return
+            val job = featureLaunch {
+                WeLogger.d(TAG, "scanCachedTargetMoments: scanning (useWhitelist=$momentsUseWhitelist)")
+                val snsIds = runCatching {
+                    queryCachedTargetSnsIds()
+                }.onFailure {
+                    WeLogger.w(TAG, "failed to query cached target moments", it)
+                }.getOrDefault(emptyList())
 
-            WeLogger.d(TAG, "scanCachedTargetMoments: found ${snsIds.size} cached moments")
-            for (snsId in snsIds) {
-                val snsInfo = WeMomentsApi.getSnsInfoBySnsId(snsId) ?: run {
-                    WeLogger.w(TAG, "scanCachedTargetMoments: failed to get snsInfo for snsId=$snsId")
-                    continue
+                WeLogger.d(TAG, "scanCachedTargetMoments: found ${snsIds.size} cached moments")
+                for (snsId in snsIds) {
+                    val snsInfo = WeMomentsApi.getSnsInfoBySnsId(snsId) ?: run {
+                        WeLogger.w(TAG, "scanCachedTargetMoments: failed to get snsInfo for snsId=$snsId")
+                        continue
+                    }
+                    WeLogger.d(TAG, "scanCachedTargetMoments: processing snsId=$snsId")
+                    processSnsInfo(snsInfo, "cached")
                 }
-                WeLogger.d(TAG, "scanCachedTargetMoments: processing snsId=$snsId")
-                processSnsInfo(snsInfo, "cached")
+            } ?: return
+            scanJob = job
+            job.invokeOnCompletion {
+                synchronized(scanLock) {
+                    if (scanJob === job) scanJob = null
+                }
             }
         }
     }
@@ -335,7 +350,7 @@ object AutoLikeMoments : AutoMomentsBase(),
         return result
     }
 
-    private fun processSnsInfo(snsInfo: Any, source: String) {
+    private suspend fun processSnsInfo(snsInfo: Any, source: String) {
         val owner = WeMomentsApi.getOwnerWxId(snsInfo)?.trim().orEmpty()
         WeLogger.d(TAG, "processSnsInfo: source=$source, owner=$owner, isTarget=${isTarget(owner)}")
         if (!isTarget(owner)) return
@@ -413,17 +428,17 @@ object AutoLikeMoments : AutoMomentsBase(),
     }
 
     private fun processSnsInfoAsync(snsInfo: Any, source: String) {
-        thread(name = "AutoLikeMomentThread") {
+        featureLaunch {
             processSnsInfo(snsInfo, source)
         }
     }
 
-    private fun sendWithDelay(block: () -> WeMomentsApi.ActionResult): WeMomentsApi.ActionResult =
-        synchronized(actionLock) {
-            val delay = actionDelayMs
-            if (delay > 0) {
-                val wait = delay - (System.currentTimeMillis() - lastActionSentAt)
-                if (wait > 0) Thread.sleep(wait)
+    private suspend fun sendWithDelay(block: () -> WeMomentsApi.ActionResult): WeMomentsApi.ActionResult =
+        actionMutex.withLock {
+            val actionDelay = actionDelayMs
+            if (actionDelay > 0) {
+                val wait = actionDelay - (System.currentTimeMillis() - lastActionSentAt)
+                if (wait > 0) delay(wait)
             }
 
             val result = block()

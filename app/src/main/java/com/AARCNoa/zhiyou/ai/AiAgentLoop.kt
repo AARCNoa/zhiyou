@@ -94,6 +94,15 @@ object AiAgentLoop {
             AiDebug.appendResponse(dumpPath, result, round)
             onRound(round, result)
             result.error?.let { return Outcome(text = null, error = it, rounds = round, closed = false) }
+            if (result.finishReason == "length") {
+                WeLogger.w(logTag, "$wxId 第 $round 轮输出达到长度上限，结果可能被截断")
+                return Outcome(
+                    text = null,
+                    error = "模型输出达到长度上限，结果可能被截断，请重试",
+                    rounds = round,
+                    closed = false,
+                )
+            }
             if (!result.hasToolCalls) {
                 return Outcome(text = result.text, error = null, rounds = round, closed = false)
             }
@@ -147,9 +156,17 @@ object AiAgentLoop {
         )
         AiDebug.appendResponse(dumpPath, closing, round + 1)
         onRound(round + 1, closing)
+        val truncated = closing.finishReason == "length"
+        if (truncated) {
+            WeLogger.w(logTag, "$wxId 收口输出达到长度上限，结果可能被截断")
+        }
         return Outcome(
-            text = closing.text,
-            error = closing.error,
+            text = if (truncated) null else closing.text,
+            error = closing.error ?: if (truncated) {
+                "模型输出达到长度上限，结果可能被截断，请重试"
+            } else {
+                null
+            },
             rounds = round + 1,
             closed = true,
         )

@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.AARCNoa.zhiyou.activity.TransparentActivity
@@ -76,6 +77,7 @@ internal fun selectAndSendVoice(context: Context, currentConv: String) {
                             onDispose { tempPath.deleteIfExists() }
                         }
                         var durationInput by remember { mutableStateOf(durationMs.toString()) }
+                        val sendScope = rememberCoroutineScope()
                         AlertDialogContent(
                             title = { Text("发送语音文件") },
                             text = {
@@ -98,38 +100,38 @@ internal fun selectAndSendVoice(context: Context, currentConv: String) {
                                         return@Button
                                     }
 
-                                    val tempSilkPath = PanelPaths.panelCacheDir / "picked-${UUID.randomUUID()}.silk"
-                                    val success = try {
-                                        if (isSilk) {
-                                            showToast("正在发送 SILK...")
-                                            WeMessageApi.sendVoice(
-                                                currentConv,
-                                                tempPath.absolutePathString(),
-                                                durMs.coerceToInt()
-                                            )
-                                        } else {
-                                            showToast("正在将音频转换为 SILK...")
-                                            if (AudioUtils.anyToSilk(
-                                                    tempPath.absolutePathString(),
-                                                    tempSilkPath.absolutePathString(),
-                                                )
-                                            ) {
-                                                WeMessageApi.sendVoice(
-                                                    currentConv,
-                                                    tempSilkPath.absolutePathString(),
-                                                    durMs.coerceToInt(),
-                                                )
-                                            } else {
-                                                showToast("转换失败! 查看日志以了解错误详情")
-                                                false
+                                    showToast(if (isSilk) "正在发送 SILK..." else "正在将音频转换为 SILK...")
+                                    sendScope.launch {
+                                        val tempSilkPath = PanelPaths.panelCacheDir / "picked-${UUID.randomUUID()}.silk"
+                                        val success = withContext(Dispatchers.IO) {
+                                            try {
+                                                if (isSilk) {
+                                                    WeMessageApi.sendVoice(
+                                                        currentConv,
+                                                        tempPath.absolutePathString(),
+                                                        durMs.coerceToInt()
+                                                    )
+                                                } else if (AudioUtils.anyToSilk(
+                                                        tempPath.absolutePathString(),
+                                                        tempSilkPath.absolutePathString(),
+                                                    )
+                                                ) {
+                                                    WeMessageApi.sendVoice(
+                                                        currentConv,
+                                                        tempSilkPath.absolutePathString(),
+                                                        durMs.coerceToInt(),
+                                                    )
+                                                } else {
+                                                    false
+                                                }
+                                            } finally {
+                                                tempSilkPath.deleteIfExists()
+                                                tempPath.deleteIfExists()
                                             }
                                         }
-                                    } finally {
-                                        tempSilkPath.deleteIfExists()
-                                        tempPath.deleteIfExists()
+                                        showToast("语音发送${if (success) "成功" else "失败!"}")
+                                        onDismiss()
                                     }
-                                    showToast("语音发送${if (success) "成功" else "失败!"}")
-                                    onDismiss()
                                 }) { Text("确定") }
                             })
                     }

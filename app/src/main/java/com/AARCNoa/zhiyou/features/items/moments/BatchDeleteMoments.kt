@@ -880,7 +880,7 @@ object BatchDeleteMoments : ClickableFeature(), IResolveDex {
                     WeLogger.i(TAG, "已学习 opType=$opType（来源：手动删除 snsId=$snsId）")
                 }
             }
-            WeLogger.i(TAG, "opType 学习 hook 已安装")
+            WeLogger.d(TAG, "opType 学习 hook 已安装")
         }.onFailure {
             WeLogger.e(TAG, "hook NetSceneSnsObjectOp 构造器失败", it)
         }

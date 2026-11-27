@@ -183,7 +183,7 @@ object AiAutoReplyFeature : ApiFeature(), WeDatabaseListenerApi.IInsertListener 
         // 每条消息都重建任务：等价于「静默期从这条重新开始数」。
         lastActivityAt[talker] = msgTime
         val seq = invalidate(talker)
-        pending[talker] = scope.launch {
+        val job = scope.launch {
             delay(AiConfig.replyDelayMs)
 
             // 静默期内又来了消息（对方的或自己的）：这一轮作废，由那条新消息重新计时。
@@ -244,6 +244,8 @@ object AiAutoReplyFeature : ApiFeature(), WeDatabaseListenerApi.IInsertListener 
                 WeLogger.w(TAG, "自动回复发送失败：${maskTalker(talker)}")
             }
         }
+        pending[talker] = job
+        job.invokeOnCompletion { pending.remove(talker, job) }
     }
 
     /**

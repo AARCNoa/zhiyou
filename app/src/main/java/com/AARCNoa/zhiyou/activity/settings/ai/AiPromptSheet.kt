@@ -172,7 +172,7 @@ internal fun AiPromptSheet(onDismiss: () -> Unit) {
             PromptSection("智能建议 · system", "三条回复 + 关系约束", AiPrompts.suggestSystem(profile))
             PromptSection(
                 "智能建议 · user",
-                "当天聊天记录（含媒体占位）+ 对方档案（记忆只带最近半年）",
+                "当天聊天记录（含媒体占位）+ 对方档案（标签不带分类前缀，记忆只带最近 100 条）",
                 AiPrompts.suggestUser(
                     profile = profile,
                     transcript = "（运行时注入当天聊天记录；图片、语音、表情包显示为占位）",

@@ -159,28 +159,63 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
     /**
      * 一个原生工具项。
      *
-     * 不再缓存微信 GridView 上的 OnItemClickListener / OnItemLongClickListener 字段：
-     * 那是反射私有字段，字段类型或名字一变就是 NPE（整轮采集直接失败、工具栏空白）。
-     * 改成记录「所在 GridView + 该项 View + 位置」，点击时走 View 的公开 API
-     * （GridView.performItemClick / View.performLongClick），与用户手指点原生图标同一条路径。
+     * 只记「所在 GridView + 项在 adapter 里的位置」，**不缓存 View 也不缓存微信的监听器字段**：
+     * - 采集阶段用 adapter.getView(index, null, grid) 造出来的 View 没有任何人持有，
+     *   WeakReference 撑不过几分钟；用户点下去时 view 已被回收 → 所有项静默无响应。
+     * - OnItemClickListener 是微信 GridView 的私有字段，字段名/类型随版本变，反射它等于把
+     *   整个采集挂在混淆名上。
+     *
+     * 点击时按 position 重建一次 View：微信的 OnItemClick 只从 view.tag 取数据，不要求
+     * View 挂到窗口上；开销与微信自己滚动列表时造 View 同级。
      */
     private data class MenuItem(
         val name: String,
         val gridView: WeakReference<GridView>,
-        val itemView: WeakReference<View>,
         val indexInGrid: Int,
     ) {
+        private fun freshView(grid: GridView): View? =
+            runCatching { grid.adapter?.getView(indexInGrid, null, grid) }.getOrNull()
+
+        private fun itemId(grid: GridView): Long =
+            runCatching { grid.adapter?.getItemId(indexInGrid) }.getOrNull() ?: indexInGrid.toLong()
+
         fun click() {
-            val grid = gridView.get() ?: return
-            val item = itemView.get() ?: return
-            val id = runCatching { grid.adapter?.getItemId(indexInGrid) }.getOrNull() ?: indexInGrid.toLong()
-            runCatching { grid.performItemClick(item, indexInGrid, id) }
+            val grid = gridView.get()
+            if (grid == null) {
+                WeLogger.w(TAG, "触发工具项失败：$name 所在面板已销毁")
+                return
+            }
+            val item = freshView(grid)
+            if (item == null) {
+                WeLogger.w(TAG, "触发工具项失败：$name 取不到 item（adapter 已释放或位置越界）")
+                return
+            }
+            val consumed = runCatching { grid.performItemClick(item, indexInGrid, itemId(grid)) }
                 .onFailure { WeLogger.e(TAG, "触发工具项失败：$name", it) }
+                .getOrDefault(false)
+            // false = 这个 GridView 没有 OnItemClickListener，不是异常；留痕便于定位挂点改了哪。
+            if (!consumed) WeLogger.w(TAG, "工具项点击未被消费：$name")
         }
 
         fun longClick() {
-            val item = itemView.get() ?: return
-            runCatching { item.performLongClick() }
+            val grid = gridView.get()
+            if (grid == null) {
+                WeLogger.w(TAG, "长按工具项失败：$name 所在面板已销毁")
+                return
+            }
+            val item = freshView(grid)
+            if (item == null) {
+                WeLogger.w(TAG, "长按工具项失败：$name 取不到 item（adapter 已释放或位置越界）")
+                return
+            }
+            // 不能走 View.performLongClick：那条路会落到 showContextMenu，要求 View 有 parent，
+            // 离屏 View 必 NPE（日志里就是这么报的）。AdapterView 的长按回调有公开 getter。
+            val listener = runCatching { grid.onItemLongClickListener }.getOrNull()
+            if (listener == null) {
+                WeLogger.w(TAG, "长按工具项失败：$name 没有 OnItemLongClickListener")
+                return
+            }
+            runCatching { listener.onItemLongClick(grid, item, indexInGrid, itemId(grid)) }
                 .onFailure { WeLogger.e(TAG, "长按工具项失败：$name", it) }
         }
     }
@@ -347,7 +382,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
                 val itemView = runCatching { adapter.getView(index, null, grid) }.getOrNull()
                     ?: continue
                 val name = toolNameOf(itemView) ?: continue
-                tools.add(name to MenuItem(name, WeakReference(grid), WeakReference(itemView), index))
+                tools.add(name to MenuItem(name, WeakReference(grid), index))
             }
         }
         WeLogger.i(TAG, "采集到 ${tools.size} 个原生工具项")
@@ -467,7 +502,7 @@ object ChatToolbar : ClickableFeature(), IResolveDex {
         if (hookedConstructors == 0) {
             error("ChatFooter 没有可 Hook 的构造器（微信类结构变化），工具栏不会显示")
         }
-        WeLogger.i(TAG, "聊天工具栏 hook 已安装（$hookedConstructors 个构造器，聊天页创建时注入）")
+        WeLogger.d(TAG, "聊天工具栏 hook 已安装（$hookedConstructors 个构造器，聊天页创建时注入）")
     }
 
     /**

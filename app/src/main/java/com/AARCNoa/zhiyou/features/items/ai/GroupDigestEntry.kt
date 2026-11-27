@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
 import com.AARCNoa.zhiyou.activity.settings.ai.UnreadBadge
+import com.AARCNoa.zhiyou.ai.AiOverviewEntryState
 import com.AARCNoa.zhiyou.ai.AiOverviewStore
 import com.AARCNoa.zhiyou.ai.group.GroupDigestStore
 import com.AARCNoa.zhiyou.utils.HostInfo
@@ -50,7 +51,8 @@ import com.AARCNoa.zhiyou.ui.utils.theme.ThemeSettings
  * 挂在 `decorView` 上按固定坐标摆放，**不插进微信的标题栏按钮区**（原因见 [attachFloating]：
  * 微信刷新菜单会 `removeAllViews` 重建那层，插进去就会不停闪）。代价是位置与显隐得自己算：
  * - 位置：状态栏 + 标题栏内垂直居中，右侧让出「＋」与搜索两个 48dp 触摸区；
- * - 显隐：400ms 轮询（切 Tab 不发 Activity 生命周期），只在「微信 Tab 且面板未展开」时显示。
+ * - 显隐：400ms 轮询只管「Tab / 面板」；内容来源（群自动总结 / 好友自动回复）由开关写入时
+ *   通知（[AiOverviewEntryState]），不在轮询里读 store。两者都没有时不显示。
  */
 object GroupDigestEntry {
 
@@ -69,6 +71,10 @@ object GroupDigestEntry {
     /** 只在状态变化时打，避免 400ms 轮询把日志刷满。 */
     private var lastSyncState: String? = null
 
+    /** 上一次 sync 的「首页可见」结论与宿主，开关变化时直接据此重算，不必等下一次轮询。 */
+    private var lastVisible = false
+    private var lastActivity: Activity? = null
+
     /** 红点数字；Compose 侧直接读这个 State，写线程不做限制。 */
     private val unread = mutableStateOf(0)
 
@@ -86,6 +92,8 @@ object GroupDigestEntry {
                 if (host === activity) {
                     stopPolling()
                     detach()
+                    lastVisible = false
+                    lastActivity = null
                 }
             }
 
@@ -96,6 +104,16 @@ object GroupDigestEntry {
         }
         runCatching { app.registerActivityLifecycleCallbacks(created) }
             .onSuccess { callbacks = created }
+        // 入口显隐跟着两个开关走，不轮询 store：初值在后台建一次，之后由写入路径通知。
+        lastVisible = false
+        lastActivity = null
+        AiOverviewEntryState.setListener {
+            Handler(Looper.getMainLooper()).post { applyEntryVisibility() }
+        }
+        Thread({
+            runCatching { AiOverviewEntryState.initialize() }
+            Handler(Looper.getMainLooper()).post { applyEntryVisibility() }
+        }, "WCX-OverviewSource").start()
         // 冷启动时模块可能晚于 LauncherUI.onResume 加载，那次 resume 已经错过：
         // 不补这一次，入口要等用户切一次页面才会出现。注册那一刻首页往往还没起来，
         // 所以按秒重试，拿到 LauncherUI 就当作一次 resume。
@@ -123,6 +141,9 @@ object GroupDigestEntry {
     fun unregister() {
         callbacks?.let { runCatching { HostInfo.application.unregisterActivityLifecycleCallbacks(it) } }
         callbacks = null
+        AiOverviewEntryState.setListener(null)
+        lastVisible = false
+        lastActivity = null
         stopPolling()
         detach()
     }
@@ -131,7 +152,9 @@ object GroupDigestEntry {
         if (act.javaClass.name != LAUNCHER) return
         // 已经从别的页面回来：只要还挂在窗口上就别重挂，否则每返回一次就闪一下。
         val current = root
-        if (current == null || current.parent == null) attachFloating(act)
+        if ((current == null || current.parent == null) && AiOverviewEntryState.visible) {
+            attachFloating(act)
+        }
         startPolling(act)
     }
 
@@ -169,20 +192,24 @@ object GroupDigestEntry {
     }
 
     fun sync(act: Activity, visible: Boolean) {
+        lastVisible = visible
+        lastActivity = act
         val current = root
-        val state = "visible=$visible root=${current != null} parent=${current?.parent != null} " +
-            "host=${host?.javaClass?.simpleName}"
+        // 没有任何内容来源时入口不出现：空面板只会占标题栏。
+        val show = visible && AiOverviewEntryState.visible
+        val state = "visible=$visible show=$show root=${current != null} " +
+            "parent=${current?.parent != null} host=${host?.javaClass?.simpleName}"
         if (state != lastSyncState) {
             lastSyncState = state
-            runCatching { WeLogger.i(TAG, "sync $state") }
+            runCatching { WeLogger.d(TAG, "sync $state") }
         }
         if (current != null && current.parent != null) {
             // 四个 Tab 共用同一棵 decorView：显隐按「当前是不是微信 Tab」来。
-            current.visibility = if (visible) View.VISIBLE else View.GONE
-            if (visible) refreshUnread()
+            current.visibility = if (show) View.VISIBLE else View.GONE
+            if (show) refreshUnread()
             return
         }
-        if (visible) attachFloating(act)
+        if (show) attachFloating(act)
     }
 
     fun refreshUnread() {
@@ -192,6 +219,22 @@ object GroupDigestEntry {
             GroupDigestStore.unreadTotal() + AiOverviewStore.unreadTotal()
         }.getOrDefault(0)
         if (unread.value != total) unread.value = total
+    }
+
+    /**
+     * 开关变化时立即应用；未挂载但当前在首页就顺手挂上，不必等下一次 400ms 轮询。
+     *
+     * 调用方保证在主线程（[AiOverviewEntryState] 的监听已 post 到 main）。
+     */
+    private fun applyEntryVisibility() {
+        val show = lastVisible && AiOverviewEntryState.visible
+        val current = root
+        if (current != null && current.parent != null) {
+            current.visibility = if (show) View.VISIBLE else View.GONE
+            if (show) refreshUnread()
+            return
+        }
+        if (show) lastActivity?.let { attachFloating(it) }
     }
 
     fun detach() {
@@ -243,7 +286,7 @@ object GroupDigestEntry {
         }
         root = container
         host = act
-        runCatching { WeLogger.i(TAG, "入口已挂载：top=${lp.topMargin} right=${lp.rightMargin}") }
+        runCatching { WeLogger.d(TAG, "入口已挂载：top=${lp.topMargin} right=${lp.rightMargin}") }
         refreshUnread()
     }
 

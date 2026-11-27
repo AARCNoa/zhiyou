@@ -2,6 +2,12 @@
 members = ["app/src/main/rust/wekit-native/", "xtask"]
 resolver = "3"
 
+# mp3lame-sys 0.1.11 的 build.rs 按主机平台判断，在 Windows 上强制使用
+# MSVC 的 configMS.h；在 clang/Android 下它会重定义 stdint 类型（int64_t 等）
+# 与 bionic 冲突。这里 vendor 一份改好的源码，避免依赖本机 cargo 缓存。
+[patch.crates-io]
+mp3lame-sys = { path = "app/src/main/rust/wekit-native/third_party/mp3lame-sys" }
+
 [profile.release]
 opt-level = "z"
 lto = true

@@ -103,7 +103,7 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import java.lang.reflect.Modifier as JavaModifier
 
-@Feature(name = "对话归拢", categories = ["聊天"], description = "将多个对话归拢在一个文件夹内\n设置对话头像需同时启用「自定义好友本地头像」")
+@Feature(name = "对话归拢", categories = ["聊天"], description = "将多个对话归拢在一个文件夹内，可单独设置文件夹头像")
 object ConversationAggregation : ClickableFeature(),
     WeDatabaseListenerApi.IQueryListener,
     WeDatabaseListenerApi.IInsertListener,
@@ -373,36 +373,41 @@ object ConversationAggregation : ClickableFeature(),
         startRefreshThread()
 
         hookMainUiRefresh()
-        WeLogger.i(TAG, "onEnable: after hookMainUiRefresh")
+        WeLogger.d(TAG, "onEnable: after hookMainUiRefresh")
         diag("onEnable: after hookMainUiRefresh")
         hookColdStartResidualRecovery()
         hookOpenFolder()
-        WeLogger.i(TAG, "onEnable: after hookOpenFolder")
+        WeLogger.d(TAG, "onEnable: after hookOpenFolder")
         diag("onEnable: after hookOpenFolder")
         hookConversationPages()
-        WeLogger.i(TAG, "onEnable: after hookConversationPages")
+        WeLogger.d(TAG, "onEnable: after hookConversationPages")
         diag("onEnable: after hookConversationPages")
         hookFolderContextMenu()
-        WeLogger.i(TAG, "onEnable: after hookFolderContextMenu")
+        WeLogger.d(TAG, "onEnable: after hookFolderContextMenu")
         diag("onEnable: after hookFolderContextMenu")
+        // 首页长按菜单的「加入文件夹」项：原本是独立功能，现已并入本功能，
+        // 开启「对话归拢」后默认可用。
+        AddToAggregationFolder.register()
+        WeLogger.d(TAG, "onEnable: after register add-to-folder menu")
+        diag("onEnable: after register add-to-folder menu")
         hookSelectConversationUi()
-        WeLogger.i(TAG, "onEnable: after hookSelectConversationUi")
+        WeLogger.d(TAG, "onEnable: after hookSelectConversationUi")
         diag("onEnable: after hookSelectConversationUi")
         hookMvvmContactListItemClick()
-        WeLogger.i(TAG, "onEnable: after hookMvvmContactListItemClick")
+        WeLogger.d(TAG, "onEnable: after hookMvvmContactListItemClick")
         diag("onEnable: after hookMvvmContactListItemClick")
         hookSqliteWrapperQuery()
         hookSqliteExec()
-        WeLogger.i(TAG, "onEnable: after hookSqliteWrapperQuery")
+        WeLogger.d(TAG, "onEnable: after hookSqliteWrapperQuery")
         diag("onEnable: after hookSqliteWrapperQuery")
         hookConversationStorageParentQuery()
-        WeLogger.i(TAG, "onEnable: after hookConversationStorageParentQuery")
+        WeLogger.d(TAG, "onEnable: after hookConversationStorageParentQuery")
         diag("onEnable: after hookConversationStorageParentQuery")
         hookConversationStorageUpdateUnread()
-        WeLogger.i(TAG, "onEnable: after hookConversationStorageUpdateUnread")
+        WeLogger.d(TAG, "onEnable: after hookConversationStorageUpdateUnread")
         diag("onEnable: after hookConversationStorageUpdateUnread")
         hookMentionTint()
-        WeLogger.i(TAG, "onEnable: after hookMentionTint")
+        WeLogger.d(TAG, "onEnable: after hookMentionTint")
         diag("onEnable: after hookMentionTint")
         hookTextViewSetText()
         hookAllTextViewDraw()
@@ -416,6 +421,10 @@ object ConversationAggregation : ClickableFeature(),
                 null
             }
         }
+        // 文件夹头像复用「自定义好友本地头像」的渲染链路，但安装与开关解耦：
+        // 只启用对话归拢也能显示文件夹头像，好友头像仍只受它自己的开关控制。
+        CustomLocalFriendAvatars.ensureAvatarHooks()
+        CustomLocalFriendAvatars.setFolderAvatarSupport(true, ::isFolderId)
 
         // Restore the materialized folder rows when re-enabled at runtime (DB already up), since
         // onDisable released them. On cold startup the DB isn't ready yet and this is a no-op —
@@ -426,10 +435,12 @@ object ConversationAggregation : ClickableFeature(),
     }
 
     override fun onDisable() {
+        AddToAggregationFolder.unregister()
         WeDatabaseListenerApi.removeListener(this)
         WeStartActivityApi.removeListener(this)
         WeDatabaseApi.removeDatabaseSwitchListener(::onDatabaseSwitched)
         CustomLocalFriendAvatars.fallbackUsernameProvider = null
+        CustomLocalFriendAvatars.setFolderAvatarSupport(false, null)
         stopRefreshThread()
 
         // Release every folder back to the homepage — unmap members and delete all wekit_folder_*
@@ -882,7 +893,7 @@ object ConversationAggregation : ClickableFeature(),
             }
             de.robv.android.xposed.XposedBridge.hookAllMethods(Activity::class.java, "onPause", guard)
             de.robv.android.xposed.XposedBridge.hookAllMethods(Activity::class.java, "finish", guard)
-            WeLogger.i(TAG, "activity transition guard installed")
+            WeLogger.d(TAG, "activity transition guard installed")
         }.onFailure { WeLogger.w(TAG, "activity transition guard failed", it) }
 
         BaseConversationUI::class.reflekt().apply {
@@ -1178,14 +1189,14 @@ object ConversationAggregation : ClickableFeature(),
                     args[2] = folderId
                     if (!loggedParentRewrite) {
                         loggedParentRewrite = true
-                        WeLogger.i(
+                        WeLogger.d(
                             TAG,
                             "queryByParent[$label] rewritten: $parentRef -> $folderId (argc=${args.size})"
                         )
                     }
                 }
             }
-            WeLogger.i(TAG, "queryByParent[$label] hooked")
+            WeLogger.d(TAG, "queryByParent[$label] hooked")
         }
     }
 
@@ -1212,10 +1223,11 @@ object ConversationAggregation : ClickableFeature(),
 
     /** tint the injected "someone @ me" prefix blue (matches FunBox) on both conversation adapters */
     private fun hookMentionTint() {
-        WeLogger.i(TAG, "tint hooks: mvvmGetView placeholder=${methodMvvmConversationAdapterGetView.isPlaceholder}, cacheGetView placeholder=${methodConversationWithCacheAdapterGetView.isPlaceholder}, textViewSetText placeholder=${methodTextViewSetText.isPlaceholder}")
+        WeLogger.d(TAG, "tint hooks: mvvmGetView placeholder=${methodMvvmConversationAdapterGetView.isPlaceholder}, cacheGetView placeholder=${methodConversationWithCacheAdapterGetView.isPlaceholder}, textViewSetText placeholder=${methodTextViewSetText.isPlaceholder}")
         diag("tint hooks: mvvm=${methodMvvmConversationAdapterGetView.isPlaceholder} cache=${methodConversationWithCacheAdapterGetView.isPlaceholder} setText=${methodTextViewSetText.isPlaceholder}")
         if (!methodMvvmConversationAdapterGetView.isPlaceholder) {
             methodMvvmConversationAdapterGetView.hookAfter {
+                if (folderTitleNames().isEmpty()) return@hookAfter
                 val root = result as? ViewGroup ?: return@hookAfter
                 tintMentionLabels(root, "getView")
                 markVirtualRow(root)
@@ -1229,6 +1241,7 @@ object ConversationAggregation : ClickableFeature(),
         }
         if (!methodConversationWithCacheAdapterGetView.isPlaceholder) {
             methodConversationWithCacheAdapterGetView.hookAfter {
+                if (folderTitleNames().isEmpty()) return@hookAfter
                 val root = result as? ViewGroup ?: return@hookAfter
                 tintMentionLabels(root, "getView")
                 markVirtualRow(root)
@@ -1259,12 +1272,12 @@ object ConversationAggregation : ClickableFeature(),
                 adapterCls.getMethod(
                     "bindViewHolder", holderCls, Int::class.javaPrimitiveType
                 ).hookAfterDirectly { tintHolder() }
-                WeLogger.i(TAG, "bindViewHolder(vh,int) androidx hook registered")
+                WeLogger.d(TAG, "bindViewHolder(vh,int) androidx hook registered")
                 diag("bindViewHolder(vh,int) androidx registered")
             }.onFailure { WeLogger.w(TAG, "hook androidx bindViewHolder(2-arg) failed", it) }
-            WeLogger.i(TAG, "bindViewHolder androidx hook registered")
+            WeLogger.d(TAG, "bindViewHolder androidx hook registered")
             diag("bindViewHolder androidx registered")
-        }.onFailure { WeLogger.w(TAG, "hook androidx bindViewHolder failed", it); diag("bindViewHolder androidx FAILED: $it") }
+        }.onFailure { WeLogger.d(TAG, "hook androidx bindViewHolder failed: $it") }
         runCatching {
             val holderCls = Class.forName(
                 "android.support.v7.widget.RecyclerView\$ViewHolder",
@@ -1277,9 +1290,9 @@ object ConversationAggregation : ClickableFeature(),
             adapterCls.getMethod(
                 "bindViewHolder", holderCls, Int::class.javaPrimitiveType, java.util.List::class.java
             ).hookAfterDirectly { tintHolder() }
-            WeLogger.i(TAG, "bindViewHolder support hook registered")
+            WeLogger.d(TAG, "bindViewHolder support hook registered")
             diag("bindViewHolder support registered")
-        }.onFailure { WeLogger.w(TAG, "hook support bindViewHolder failed", it); diag("bindViewHolder support FAILED: $it") }
+        }.onFailure { WeLogger.d(TAG, "hook support bindViewHolder failed: $it") }
     }
 
 
@@ -1359,7 +1372,7 @@ object ConversationAggregation : ClickableFeature(),
                 }
             }
             diag("NMTV tint hook installed")
-            WeLogger.i(TAG, "NoMeasuredTextView.setText tint hook installed")
+            WeLogger.d(TAG, "NoMeasuredTextView.setText tint hook installed")
         }.onFailure {
             diag("NMTV tint hook FAILED: $it")
             WeLogger.e(TAG, "NoMeasuredTextView.setText tint hook failed", it)
@@ -1428,7 +1441,7 @@ object ConversationAggregation : ClickableFeature(),
                 }
             }
             diag("ConversationList dispatchDraw hooked")
-            WeLogger.i(TAG, "ConversationList dispatchDraw hooked")
+            WeLogger.d(TAG, "ConversationList dispatchDraw hooked")
         }.onFailure {
             diag("ConversationList dispatchDraw FAILED: $it")
             WeLogger.w(TAG, "ConversationList dispatchDraw hook fail", it)
@@ -1562,6 +1575,8 @@ object ConversationAggregation : ClickableFeature(),
      * RecyclerView 复用旧 item 时先清 tag（未命中即普通会话）。
      */
     private fun markVirtualRow(root: ViewGroup) {
+        // 没有归拢文件夹时不可能有归拢行：直接返回，省掉每行两次 View 树 BFS。
+        if (folderTitleNames().isEmpty()) return
         runCatching {
             val queue = java.util.ArrayDeque<View>()
             queue.add(root)
@@ -1575,7 +1590,6 @@ object ConversationAggregation : ClickableFeature(),
                     // 标题：非摘要、含文字（排除未读数角标等纯数字/时间控件）、字号最大的 TextView
                     if (!isAggSummary(t) && t.any { it.isLetter() } && (titleTv == null || v.textSize > titleTv.textSize)) {
                         titleTv = v
-                        WeLogger.i(TAG, "titleTv candidate: class=${v.javaClass.simpleName} textSize=${v.textSize} text=${t.take(20)}")
                     }
                     // 归拢摘要标记命中即识别（摘要控件不限于 NoMeasuredTextView）
                     if (isAggSummary(t) && summaryTv == null) {
@@ -1621,7 +1635,7 @@ object ConversationAggregation : ClickableFeature(),
                 }
             }
             diag("ItemDispatchDraw hook: ${cls.name}")
-            WeLogger.i(TAG, "ItemDispatchDraw hook: ${cls.name}")
+            WeLogger.d(TAG, "ItemDispatchDraw hook: ${cls.name}")
         }.onFailure {
             diag("ItemDispatchDraw hook FAIL ${cls.name}: $it")
             WeLogger.w(TAG, "ItemDispatchDraw hook fail", it)
@@ -1631,6 +1645,7 @@ object ConversationAggregation : ClickableFeature(),
 
 
     private fun XC_MethodHook.MethodHookParam.tintHolder() {
+        if (folderTitleNames().isEmpty()) return
         val holder = args?.getOrNull(0) ?: return
         val itemView = runCatching {
             holder.javaClass.getMethod("getItemView").invoke(holder) as? View
@@ -1678,6 +1693,8 @@ object ConversationAggregation : ClickableFeature(),
     }
 
     private fun tintMentionLabels(root: ViewGroup, tag: String) {
+        // 归拢标记只出现在归拢摘要行；没有文件夹时无需遍历。
+        if (folderTitleNames().isEmpty()) return
         var tvCount = 0
         var hit = 0
         val queue = java.util.ArrayDeque<View>()
@@ -1712,7 +1729,7 @@ object ConversationAggregation : ClickableFeature(),
                         WeLogger.d(TAG, "execSQL: $sql")
                     }
                 }
-            WeLogger.i(TAG, "execSQL hook registered")
+            WeLogger.d(TAG, "execSQL hook registered")
             diag("execSQL hook registered")
         }.onFailure { WeLogger.w(TAG, "hook execSQL failed", it) }
     }
@@ -1777,7 +1794,7 @@ object ConversationAggregation : ClickableFeature(),
         if (methodConversationStorageUpdateUnreadByTalker.isPlaceholder) return
         methodConversationStorageUpdateUnreadByTalker.hookBefore {
             val username = args.firstOrNull() as? String ?: return@hookBefore
-            WeLogger.i(TAG, "updateUnreadByTalker: $username folder=${isFolderId(username)}")
+            WeLogger.d(TAG, "updateUnreadByTalker: $username folder=${isFolderId(username)}")
             diag("updateUnreadByTalker: $username folder=${isFolderId(username)}")
             if (isFolderId(username)) result = true
         }
@@ -2459,12 +2476,12 @@ object ConversationAggregation : ClickableFeature(),
         folderSchemaReady?.let { return it }
         val result = runCatching {
             val conversationColumns = tableColumns(ConversationTable.NAME)
-            WeLogger.i(TAG, "rconversation columns: $conversationColumns")
+            WeLogger.d(TAG, "rconversation columns: $conversationColumns")
             runCatching {
                 WeDatabaseApi.rawQuery("SELECT name FROM sqlite_master WHERE type='table'").use { tc ->
                     val tns = mutableListOf<String>()
                     while (tc.moveToNext()) tns += tc.getString(0)
-                    WeLogger.i(TAG, "sqlite tables: ${tns.joinToString()}")
+                    WeLogger.d(TAG, "sqlite tables: ${tns.joinToString()}")
                 }
             }.onFailure { WeLogger.w(TAG, "list tables failed", it) }
             val contactColumns = tableColumns(ContactTable.NAME)
@@ -2552,6 +2569,7 @@ object ConversationAggregation : ClickableFeature(),
             var titleEnabled by remember { mutableStateOf(folderTitleEnabled) }
             var selfEnabled by remember { mutableStateOf(mentionSelfEnabled) }
             var memberEnabled by remember { mutableStateOf(mentionMemberEnabled) }
+            var addToFolderConfig by remember { mutableStateOf(AddToAggregationFolder.showConfigDialog) }
 
             AlertDialogContent(
                 modifier = Modifier
@@ -2589,6 +2607,10 @@ object ConversationAggregation : ClickableFeature(),
                                     }
                                     if (titleEnabled) {
                                         WeColorField(label = "文件夹标题", value = titleColor, onValueChange = { titleColor = it })
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("加入文件夹后打开配置对话框", modifier = Modifier.weight(1f))
+                                        Switch(checked = addToFolderConfig, onCheckedChange = { addToFolderConfig = it })
                                     }
                                 }
                             }
@@ -2632,6 +2654,7 @@ object ConversationAggregation : ClickableFeature(),
                         folderTitleEnabled = titleEnabled
                         mentionSelfEnabled = selfEnabled
                         mentionMemberEnabled = memberEnabled
+                        AddToAggregationFolder.showConfigDialog = addToFolderConfig
                         saveFolders(folders)
                         syncFoldersToDatabase()
                         showToast(context, "已保存, 重启微信生效")
@@ -2846,10 +2869,6 @@ object ConversationAggregation : ClickableFeature(),
                                     }
                                 }
                                 Button(onClick = {
-                                    if (!CustomLocalFriendAvatars.isEnabled) {
-                                        showToast("请启用「自定义好友本地头像」以使用头像相关功能!")
-                                    }
-
                                     CustomLocalFriendAvatars.selectAvatarImage(HostInfo.application, folderId)
                                 }) {
                                     Text(if (hasAvatar) "更换头像" else "设置头像")

@@ -1,6 +1,7 @@
 package com.AARCNoa.zhiyou.ai.group
 
 import com.AARCNoa.zhiyou.BuildConfig
+import com.AARCNoa.zhiyou.ai.AiOverviewEntryState
 import com.AARCNoa.zhiyou.ai.AiProfileStore
 import com.AARCNoa.zhiyou.ai.storeLog
 import com.AARCNoa.zhiyou.utils.WeLogger
@@ -89,6 +90,7 @@ object GroupDigestStore {
     fun saveConfig(config: GroupDigestConfig): Boolean {
         if (config.groupId.isEmpty() || config.groupId.contains('/')) return false
         val trimmed = config.trimmed(System.currentTimeMillis())
+        val wasEnabled = cache[trimmed.groupId]?.enabled == true
         val text = runCatching { json.encodeToString(trimmed) }.getOrElse {
             log("config 序列化失败：${config.groupId}：${it.javaClass.simpleName}")
             return false
@@ -96,6 +98,8 @@ object GroupDigestStore {
         if (!AiProfileStore.writeAtomic(configFile(trimmed.groupId), text)) return false
         cache[trimmed.groupId] = trimmed
         upsertIndexEntry(trimmed.toSummary())
+        // 开关只有这一条写路径（含调度失败后的自动暂停）；变了才通知入口，状态/未读更新不触发。
+        if (wasEnabled != trimmed.enabled) AiOverviewEntryState.refresh()
         return true
     }
 
@@ -122,9 +126,12 @@ object GroupDigestStore {
     @Synchronized
     fun deleteConfig(groupId: String): Boolean {
         if (groupId.isEmpty() || groupId.contains('/')) return false
+        val wasEnabled = readConfig(groupId)?.enabled == true
         cache.remove(groupId)
         if (!removeIndexEntry(groupId)) return false
-        return AiProfileStore.delete(configFile(groupId))
+        val removed = AiProfileStore.delete(configFile(groupId))
+        if (wasEnabled) AiOverviewEntryState.refresh()
+        return removed
     }
 
     fun listGroupIds(): List<String> = runCatching {
@@ -226,6 +233,9 @@ object GroupDigestStore {
     }
 
     // ── 未读 ────────────────────────────────────────────────────────────────
+
+    /** 入口显隐用：是否有任一开启了自动总结的群。只读索引缓存，不逐个读单群文件。 */
+    fun hasEnabledGroup(): Boolean = loadIndex().groups.any { it.enabled }
 
     /** 入口红点用：所有群未读之和，>99 由 UI 显示 `99+`。 */
     fun unreadTotal(): Int {

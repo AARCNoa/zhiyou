@@ -172,7 +172,7 @@ object FakeMomentsLikes : SwitchFeature(), WeMomentsContextMenuApi.IMenuItemsPro
      * 界面还是旧数据（详情页每次都重新读，所以会出现「详情有、信息流没有」）。
      * 只对 SNS 相关 Activity 生效，且只调用列表自己的 `notifyDataSetChanged()`。
      */
-    private fun refreshMomentsLists() {
+    internal fun refreshMomentsLists() {
         runCatching {
             val atClass = Class.forName("android.app.ActivityThread")
             val thread = atClass.getDeclaredMethod("currentActivityThread").invoke(null)
@@ -239,7 +239,7 @@ object FakeMomentsLikes : SwitchFeature(), WeMomentsContextMenuApi.IMenuItemsPro
                 if (wxIds.isNotEmpty()) injectedWxIds[snsId] = wxIds
             }
         }.onFailure { WeLogger.e(TAG, "failed to load injected map", it) }
-        WeLogger.i(
+        WeLogger.d(
             TAG,
             "伪点赞配置：${fakeLikeWxIds.size} 条动态（${fakeLikeWxIds.keys.joinToString()}），" +
                 "已注入记录 ${injectedWxIds.size} 条",

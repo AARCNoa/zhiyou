@@ -52,11 +52,9 @@ object HostFramework {
     fun recordAtLoad(entryName: String, entryApi: Int = 0) {
         runCatching {
             val text = buildString {
-                append(brand() ?: UNKNOWN)
-                append(" · ")
-                // 两条入口上报的都是框架自己的 API 级别（LSPosed 兼容层为 102），
-                // 不再额外区分「Xposed / LibXposed」前缀，避免出现「Xposed API 102」这种误解。
                 val api = if (entryName.contains("Lsp10x") && entryApi > 0) entryApi else xposedApiLevel()
+                append(brand() ?: brandByApi(api) ?: UNKNOWN)
+                append(" · ")
                 if (api > 0) append("API ").append(api) else append("Xposed")
             }
             val cached = WePrefs.getStringOrDef(Preferences.CACHED_FRAMEWORK, "")
@@ -93,8 +91,8 @@ object HostFramework {
     }.getOrDefault(UNKNOWN)
 
     private fun recordless(): String {
-        val found = brand()
         val api = xposedApiLevel()
+        val found = brand() ?: brandByApi(api)
         return when {
             found != null && api > 0 -> "$found · API $api"
             found != null -> found
@@ -107,6 +105,14 @@ object HostFramework {
 
     private fun brand(): String? = brandFromMaps() ?: brandFromClasses() ?: brandFromStack()
 
+    /**
+     * 三个探测全部落空时的兜底：`XposedBridge` 的版本号本身就是框架指纹。
+     * 自带的「阻止 Native 检测」会把框架库从 /proc/self/maps 里抹掉，微信进程里
+     * [brandFromMaps] 必然读不到，而经典 API 82 / EdXposed 93 早已无人使用，
+     * 现在能通过经典入口加载模块、且版本 >= 93 的基本只有 LSPosed（官方 1.9 上报 93，新分支 100+）。
+     */
+    private fun brandByApi(api: Int): String? = if (api >= 93) "LSPosed" else null
+
     private fun brandFromMaps(): String? = runCatching {
         File("/proc/self/maps").useLines { lines ->
             lines.firstNotNullOfOrNull { line ->
@@ -117,7 +123,10 @@ object HostFramework {
     }.getOrNull()
 
     private fun brandFromClasses(): String? {
+        // Xposed API 类所在的 loader 就是框架自己的 loader（org.lsposed.lspd.* 与它同住），
+        // 比 HostInfo.application 的 PathClassLoader 更有可能探到框架实现类。
         val loaders = listOfNotNull(
+            XposedBridge::class.java.classLoader,
             HostFramework::class.java.classLoader,
             runCatching { HostInfo.application.classLoader }.getOrNull(),
         )

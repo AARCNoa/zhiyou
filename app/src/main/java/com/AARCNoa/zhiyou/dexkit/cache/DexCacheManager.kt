@@ -94,10 +94,14 @@ object DexCacheManager {
     /**
      * 将 [item] 所有委托的当前描述符持久化到缓存文件。
      * 数据来自 [IResolveDex.collectDescriptors]。
+     *
+     * @return 是否真的写入磁盘。写失败不抛异常（不能因为缓存问题崩微信），但必须让调用方
+     *         知道——「解析成功」和「落盘成功」是两件事：前者决定功能能不能启用，后者决定
+     *         下次启动要不要重新解析。吞掉返回值会让日志报「已适配」而缓存始终是旧的。
      */
-    fun saveItemCache(item: IResolveDex) {
+    fun saveItemCache(item: IResolveDex): Boolean {
         val cacheFile = getCacheFile(cacheFileName(item))
-        try {
+        return try {
             val json = JSONObject()
             // hash 缺失时跳过该字段而不是抛错：委托描述符照常持久化，
             // 下次启动按 key 完整性校验（见 loadItemCacheChecked），item 可正常启用。
@@ -110,8 +114,10 @@ object DexCacheManager {
 
             cacheFile.writeText(json.toString(2))
             WeLogger.d(TAG, "cache saved for: ${item.cacheLabel()}")
+            true
         } catch (e: Exception) {
             WeLogger.e(TAG, "failed to save cache for: ${item.cacheLabel()}", e)
+            false
         }
     }
 

@@ -1357,7 +1357,7 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
         }?.let { videoPath ->
             val thumbPath = fetchVideoThumbPath(content.nativeMediaList)
                 ?.takeIf { vfsFileExists(it) || it.asPath.isRegularFile() }
-                ?: generateVideoThumb(context, videoPath)
+                ?: withContext(Dispatchers.IO) { generateVideoThumb(context, videoPath) }
                 ?: return null
             ResolvedVideo(videoPath, thumbPath)
         }
@@ -1394,40 +1394,41 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
         }
     }
 
-    private fun isUsableVideoPath(context: Context, path: String): Boolean {
-        val isRegularFile = path.asPath.isRegularFile()
-        if (!(vfsFileExists(path) || isRegularFile)) return false
+    private suspend fun isUsableVideoPath(context: Context, path: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val isRegularFile = path.asPath.isRegularFile()
+            if (!(vfsFileExists(path) || isRegularFile)) return@withContext false
 
-        val localVideo = if (isRegularFile) {
-            null
-        } else {
-            KnownPaths.moduleCache / "wcx_moments_probe_${System.currentTimeMillis()}.mp4"
-        }
-        val sourcePath = localVideo?.let { file ->
-            if (!copyExistingFile(path, file.absolutePathString())) return false
-            file.absolutePathString()
-        } ?: path
-
-        return runCatching {
-            val retriever = MediaMetadataRetriever()
-            try {
-                retriever.setDataSource(sourcePath)
-                val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
-                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
-                val usable = duration > 0L && width > 0 && height > 0
-                WeLogger.i(TAG, "probe Moments cached video: path=$path, duration=$duration, size=${width}x$height, usable=$usable")
-                usable
-            } finally {
-                retriever.release()
-                deleteTempFile(localVideo, "Moments video probe temp file")
+            val localVideo = if (isRegularFile) {
+                null
+            } else {
+                KnownPaths.moduleCache / "wcx_moments_probe_${System.currentTimeMillis()}.mp4"
             }
-        }.getOrElse {
-            deleteTempFile(localVideo, "Moments video probe temp file")
-            WeLogger.e(TAG, "failed to probe Moments cached video: $path", it)
-            false
+            val sourcePath = localVideo?.let { file ->
+                if (!copyExistingFile(path, file.absolutePathString())) return@withContext false
+                file.absolutePathString()
+            } ?: path
+
+            runCatching {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(sourcePath)
+                    val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                    val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+                    val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+                    val usable = duration > 0L && width > 0 && height > 0
+                    WeLogger.i(TAG, "probe Moments cached video: path=$path, duration=$duration, size=${width}x$height, usable=$usable")
+                    usable
+                } finally {
+                    retriever.release()
+                    deleteTempFile(localVideo, "Moments video probe temp file")
+                }
+            }.getOrElse {
+                deleteTempFile(localVideo, "Moments video probe temp file")
+                WeLogger.e(TAG, "failed to probe Moments cached video: $path", it)
+                false
+            }
         }
-    }
 
     /**
      * 将朋友圈媒体逐项解析为可转发的本地路径 (支持静态图与实况图片混合)。
@@ -1668,8 +1669,9 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
                 return ActionResult(success = false, sent = false, message = "实况未缓存, 请先播放一次后再试!")
             }
 
-            val editorMedia = prepareGalleryEditorMedia(activity, resolved.items)
-                ?: return ActionResult(success = false, sent = false, message = "实况保存到相册失败!")
+            val editorMedia = withContext(Dispatchers.IO) {
+                prepareGalleryEditorMedia(activity, resolved.items)
+            } ?: return ActionResult(success = false, sent = false, message = "实况保存到相册失败!")
 
             if (openMomentMixedMediaEditorFromAlbumResult(activity, text, editorMedia, source)) {
                 ActionResult(success = true, sent = false, message = "已打开编辑界面")
@@ -2282,7 +2284,7 @@ object WeMomentsApi : ApiFeature(), IResolveDex {
         }
     }
 
-    private fun fetchUsableCachedVideoPath(context: Context, nativeMediaList: LinkedList<*>): String? {
+    private suspend fun fetchUsableCachedVideoPath(context: Context, nativeMediaList: LinkedList<*>): String? {
         val path = fetchVideoPath(nativeMediaList)?.takeIf { it.isNotBlank() } ?: return null
         if (!isUsableVideoPath(context, path)) return null
         val mediaId = nativeMediaList.firstOrNull()?.let { getNativeMediaId(it) }

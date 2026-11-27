@@ -44,7 +44,7 @@ object WeChatMessageViewApi : ApiFeature(), IResolveDex {
 
     fun removeListener(listener: ICreateViewListener) {
         val removed = listeners.remove(listener)
-        WeLogger.i(
+        WeLogger.d(
             TAG,
             "listener remove ${if (removed) "succeeded" else "failed"}, current listener count: ${listeners.size}"
         )
@@ -58,7 +58,7 @@ object WeChatMessageViewApi : ApiFeature(), IResolveDex {
 
     fun removeLifecycleListener(listener: IMessageViewLifecycleListener) {
         val removed = lifecycleListeners.remove(listener)
-        WeLogger.i(
+        WeLogger.d(
             TAG,
             "lifecycle listener remove ${if (removed) "succeeded" else "failed"}, current listener count: ${lifecycleListeners.size}"
         )
@@ -147,7 +147,7 @@ object WeChatMessageViewApi : ApiFeature(), IResolveDex {
                 ?.get()
             if (adapter != null) {
                 cachedAdapter = adapter
-                WeLogger.i(TAG, "cached chatting adapter: ${adapter.javaClass.name}")
+                WeLogger.d(TAG, "cached chatting adapter: ${adapter.javaClass.name}")
             }
         }.onFailure { WeLogger.w(TAG, "cacheAdapter failed: ${it.message}") }
     }

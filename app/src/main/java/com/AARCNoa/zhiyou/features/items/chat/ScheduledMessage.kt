@@ -58,6 +58,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -304,107 +305,69 @@ object ScheduledMessage : ClickableFeature() {
         }
         WeLogger.i(TAG, "scheduled trigger fired for ${schedule.id} (next=${schedule.nextSendTime}, now=$nowMs)")
 
-        // 发送前先把每日任务的 nextSendTime 推进到下一个自然日并落库：
-        // 迟到/重复的同刻触发会被上面的时间守卫直接拦截，确保同一时间窗内只发送一次
-        if (!schedule.oneTimeOnly && schedule.repeatDaily) {
-            schedule.nextSendTime = calculateNextOccurrence(schedule)
-            updateSchedule(schedule)
-        }
-
-        runCatching {
+        val sent = try {
             if (schedule.segments.isNotEmpty()) {
                 schedule.segments.forEachIndexed { index, segment ->
-                    sendSegment(schedule.talker, segment)
+                    check(sendSegment(schedule.talker, segment)) { "消息段 ${segment.type} 发送失败" }
                     if (index < schedule.segments.size - 1) {
                         delay(500)
                     }
                 }
             } else {
-                sendLegacySingle(schedule)
+                check(sendLegacySingle(schedule)) { "定时消息发送失败" }
             }
 
             WeLogger.i(TAG, "scheduled message sent to ${schedule.talker}")
-        }.onFailure {
-            WeLogger.e(TAG, "failed to send scheduled message", it)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            WeLogger.e(TAG, "failed to send scheduled message", e)
+            false
         }
+        if (!sent) return
 
         if (schedule.oneTimeOnly) {
             schedule.enabled = false
             updateSchedule(schedule)
             cancelAlarm(schedule)
         } else if (schedule.repeatDaily) {
-            // 发送完成后的重排严格取下一个自然日，不进补发窗口（补发仅限启用/注册时的错过场景）
+            // 仅在发送成功后推进并重排到下一个自然日，失败时保留原执行状态。
             scheduleAlarm(schedule, allowCatchUp = false)
         }
     }
 
-    private fun sendSegment(talker: String, segment: MessageSegment) {
+    private fun sendSegment(talker: String, segment: MessageSegment): Boolean =
         when (segment.type) {
-            MessageType.TEXT -> {
-                if (segment.content.isNotBlank()) {
-                    WeMessageApi.sendText(talker, segment.content)
-                }
-            }
-            MessageType.LINK -> {
-                if (segment.content.isNotBlank()) {
-                    WeMessageApi.sendText(talker, segment.content)
-                }
-            }
-            MessageType.IMAGE -> {
-                if (segment.filePath.isNotBlank()) {
-                    WeMessageApi.sendImage(talker, segment.filePath)
-                }
-            }
-            MessageType.VOICE -> {
-                if (segment.filePath.isNotBlank()) {
-                    WeMessageApi.sendVoice(talker, segment.filePath, segment.duration)
-                }
-            }
-            MessageType.VIDEO -> {
-                if (segment.filePath.isNotBlank()) {
-                    WeMessageApi.sendVideo(talker, segment.filePath)
-                }
-            }
+            MessageType.TEXT -> segment.content.isNotBlank() && WeMessageApi.sendText(talker, segment.content)
+            MessageType.LINK -> segment.content.isNotBlank() && WeMessageApi.sendText(talker, segment.content)
+            MessageType.IMAGE -> segment.filePath.isNotBlank() && WeMessageApi.sendImage(talker, segment.filePath)
+            MessageType.VOICE -> segment.filePath.isNotBlank() && WeMessageApi.sendVoice(talker, segment.filePath, segment.duration)
+            MessageType.VIDEO -> segment.filePath.isNotBlank() && WeMessageApi.sendVideo(talker, segment.filePath)
             MessageType.FILE -> {
-                if (segment.filePath.isNotBlank()) {
+                if (segment.filePath.isBlank()) false
+                else {
                     val fileName = segment.filePath.substringAfterLast('/')
                     WeMessageApi.sendFile(talker, segment.filePath, fileName)
                 }
             }
         }
-    }
 
-    private fun sendLegacySingle(schedule: ScheduleConfig) {
+    private fun sendLegacySingle(schedule: ScheduleConfig): Boolean =
         when (schedule.messageType) {
-            MessageType.TEXT -> {
-                WeMessageApi.sendText(schedule.talker, schedule.content)
-            }
-            MessageType.LINK -> {
-                WeMessageApi.sendText(schedule.talker, schedule.content)
-            }
-            MessageType.IMAGE -> {
-                if (schedule.filePath.isNotBlank()) {
-                    WeMessageApi.sendImage(schedule.talker, schedule.filePath)
-                }
-            }
-            MessageType.VOICE -> {
-                if (schedule.filePath.isNotBlank()) {
-                    WeMessageApi.sendVoice(schedule.talker, schedule.filePath, schedule.duration)
-                }
-            }
-            MessageType.VIDEO -> {
-                if (schedule.filePath.isNotBlank()) {
-                    WeMessageApi.sendVideo(schedule.talker, schedule.filePath)
-                }
-            }
+            MessageType.TEXT -> schedule.content.isNotBlank() && WeMessageApi.sendText(schedule.talker, schedule.content)
+            MessageType.LINK -> schedule.content.isNotBlank() && WeMessageApi.sendText(schedule.talker, schedule.content)
+            MessageType.IMAGE -> schedule.filePath.isNotBlank() && WeMessageApi.sendImage(schedule.talker, schedule.filePath)
+            MessageType.VOICE -> schedule.filePath.isNotBlank() && WeMessageApi.sendVoice(schedule.talker, schedule.filePath, schedule.duration)
+            MessageType.VIDEO -> schedule.filePath.isNotBlank() && WeMessageApi.sendVideo(schedule.talker, schedule.filePath)
             MessageType.FILE -> {
-                if (schedule.filePath.isNotBlank()) {
+                if (schedule.filePath.isBlank()) false
+                else {
                     val fileName = schedule.filePath.substringAfterLast('/')
                     WeMessageApi.sendFile(schedule.talker, schedule.filePath, fileName)
                 }
             }
         }
-    }
 
     private fun cancelAlarm(schedule: ScheduleConfig) {
         timerJobs.remove(schedule.id)?.cancel()
@@ -464,7 +427,11 @@ object ScheduledMessage : ClickableFeature() {
                 ) { uri ->
                     finish()
                     if (uri == null) return@registerForActivityResult
-                    copyUriToCache(uri, type)?.let(onPicked)
+                    featureLaunch {
+                        copyUriToCache(uri, type)?.let { path ->
+                            withContext(Dispatchers.Main) { onPicked(path) }
+                        }
+                    }
                 }
                 val visualMediaType = if (type == MessageType.IMAGE) {
                     ActivityResultContracts.PickVisualMedia.ImageOnly
@@ -483,7 +450,11 @@ object ScheduledMessage : ClickableFeature() {
                 ) { uri ->
                     finish()
                     if (uri == null) return@registerForActivityResult
-                    copyUriToCache(uri, type)?.let(onPicked)
+                    featureLaunch {
+                        copyUriToCache(uri, type)?.let { path ->
+                            withContext(Dispatchers.Main) { onPicked(path) }
+                        }
+                    }
                 }
                 launcher.launch(mimeTypes)
             }

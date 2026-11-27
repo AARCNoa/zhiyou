@@ -115,6 +115,7 @@ object AiProfileStore {
      * `autoReply = true` 的那几条，启动后加载一次。消息落库的每条消息都会调它，
      * 所以预热完成后这里不碰文件。
      */
+    @Synchronized
     fun isAutoReplyOn(wxId: String): Boolean {
         cache[wxId]?.let { return it.isReady && it.autoReply }
         // 预热还没完成：这条消息按旧路径读一次档案。反过来（先返回 false）会把
@@ -122,6 +123,15 @@ object AiProfileStore {
         if (!autoReplyReady) return readProfile(wxId)?.let { it.isReady && it.autoReply } == true
         return wxId in (autoReplySet ?: emptySet())
     }
+
+    /**
+     * 入口显隐用：是否有「档案就绪且开着自动回复」的好友。
+     *
+     * 返回 null 表示索引还没预热完（[warmAutoReplySet] 尚未完成），调用方应视为
+     * 「未知」——这一轮别据此隐藏入口，等下一次轮询再判。
+     */
+    fun anyAutoReplyOrNull(): Boolean? =
+        if (autoReplyReady) (autoReplySet ?: emptySet()).isNotEmpty() else null
 
     /**
      * 启动后调一次（后台线程）：把开关集合建好。
@@ -162,12 +172,15 @@ object AiProfileStore {
             return false
         }
         if (!writeAtomic(profileFile(profile.wxId), text)) return false
+        val wasOn = autoReplySet?.contains(profile.wxId) == true
         cache[profile.wxId] = profile
         upsertIndexEntry(profile.toSummary())
         // 与索引同步：开关是在设置页改的，改完下一条消息就要生效。
         autoReplySet = autoReplySet?.let { set ->
             if (profile.isReady && profile.autoReply) set + profile.wxId else set - profile.wxId
         }
+        // 总览入口跟着「自动回复」走：只有这个布尔值变了才通知，标签/记忆的写入不触发。
+        if (wasOn != (profile.isReady && profile.autoReply)) AiOverviewEntryState.refresh()
         return true
     }
 
@@ -191,12 +204,14 @@ object AiProfileStore {
     /** 删除档案。标签与记忆随文件一起消失 —— 这是全模块唯一的清除入口。 */
     @Synchronized
     fun deleteProfile(wxId: String): Boolean {
+        val wasOn = autoReplySet?.contains(wxId) == true
         cache.remove(wxId)
         autoReplySet = autoReplySet?.minus(wxId)
         val removed = delete(profileFile(wxId))
         removeIndexEntry(wxId)
         // 总览里的约定一起清：档案都没了，入口红点却还亮着一个点不进去的条目。
         runCatching { AiOverviewStore.removeFriend(wxId) }
+        if (wasOn) AiOverviewEntryState.refresh()
         return removed
     }
 

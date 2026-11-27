@@ -11,7 +11,7 @@ mod native_hook;
 mod telegram_sticker;
 mod utils;
 
-use std::{ffi::CString, process::abort};
+use std::ffi::CString;
 
 use crash_handler::{install_crash_handler, uninstall_crash_handler};
 use crash_triggerer::trigger_test_crash;
@@ -226,6 +226,40 @@ pub extern "C" fn Java_com_AARCNoa_zhiyou_utils_TelegramStickerConverter_webmToG
         })
     });
     native_error_string(env, result)
+}
+
+/// 立即安装 native 反检测钩子，不必等下次启动微信。
+///
+/// Java 签名: `NativeAntiDetection.nativeEnable(Ljava/lang/String;)Z`
+/// 入参是换行分隔的隐藏 token 列表（模块包名、APK 路径、数据目录…）。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_com_AARCNoa_zhiyou_features_items_system_NativeAntiDetection_nativeEnable(
+    env: *mut RawJNIEnv,
+    _thiz: jobject,
+    tokens: jstring,
+) -> jboolean {
+    with_jstring(env, tokens, |payload| {
+        let list: Vec<Vec<u8>> = payload
+            .split('\n')
+            .map(|line| line.trim_end_matches('\r').as_bytes().to_vec())
+            .filter(|token| !token.is_empty())
+            .collect();
+        if crate::native_hook::enable_from_java(list) {
+            JNI_TRUE
+        } else {
+            JNI_FALSE
+        }
+    })
+}
+
+/// 运行期关闭 native 反检测（不卸载 trampoline，只关总开关，效果等同未安装）。
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_com_AARCNoa_zhiyou_features_items_system_NativeAntiDetection_nativeDisable(
+    _env: *mut RawJNIEnv,
+    _thiz: jobject,
+) -> jboolean {
+    crate::native_hook::disable_from_java();
+    JNI_TRUE
 }
 
 /// Required JNI library entry point — returns the JNI version we target.

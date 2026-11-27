@@ -1,6 +1,7 @@
 package com.AARCNoa.zhiyou.ai
 
 import com.AARCNoa.zhiyou.BuildConfig
+import com.AARCNoa.zhiyou.ai.group.GroupDigestStore
 import com.AARCNoa.zhiyou.utils.WeLogger
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -227,4 +228,52 @@ object AiOverviewStore {
 
     private const val TITLE_MAX = 40
     private const val DETAIL_MAX = 200
+}
+
+/**
+ * 总览入口的显隐依据：至少一个群开着自动总结，或至少一个好友（档案就绪）开着自动回复。
+ *
+ * **不做轮询**：开关写入后由 [GroupDigestStore] / [AiProfileStore] 调 [refresh]，
+ * 入口注册 [setListener] 后即时更新；启动初值由 [initialize] 在 IO 线程建一次。
+ */
+object AiOverviewEntryState {
+
+    /** 初值先按「不显示」：没有任何来源的用户不会在冷启动时看到图标闪一下。 */
+    @Volatile
+    private var hasSource = false
+
+    @Volatile
+    private var listener: (() -> Unit)? = null
+
+    val visible: Boolean get() = hasSource
+
+    fun setListener(l: (() -> Unit)?) {
+        listener = l
+    }
+
+    /** 启动时在 IO 线程调一次：预热好友索引后建立初值。读失败按「有来源」处理，避免误藏。 */
+    fun initialize() {
+        val next = runCatching {
+            AiProfileStore.warmAutoReplySet()
+            val group = GroupDigestStore.hasEnabledGroup()
+            val friend = AiProfileStore.anyAutoReplyOrNull() ?: true
+            group || friend
+        }.getOrDefault(true)
+        publish(next)
+    }
+
+    /** 开关写入后调用；只读内存索引，可在任意线程。好友索引未预热时保持现状。 */
+    fun refresh() {
+        val next = runCatching {
+            if (GroupDigestStore.hasEnabledGroup()) true
+            else AiProfileStore.anyAutoReplyOrNull() ?: return
+        }.getOrElse { return }
+        publish(next)
+    }
+
+    private fun publish(next: Boolean) {
+        if (next == hasSource) return
+        hasSource = next
+        listener?.invoke()
+    }
 }

@@ -1,5 +1,6 @@
 package com.AARCNoa.zhiyou.features.core
 
+import com.AARCNoa.zhiyou.features.items.chat.BlockAllMentionNotifications
 import com.AARCNoa.zhiyou.features.items.contacts.hidecontacts.HideContactsNotifications
 import com.AARCNoa.zhiyou.features.items.miniapps.BypassUnderageGamingLimit
 import com.AARCNoa.zhiyou.features.items.miniapps.ErudaConsole
@@ -23,6 +24,7 @@ internal object NonMainFeatures {
     val registeredClasses: Set<Class<*>> by lazy {
         setOf(
             HideContactsNotifications::class.java,
+            BlockAllMentionNotifications::class.java,
             BypassUnderageGamingLimit::class.java,
             ErudaConsole::class.java,
             SkipRewardedAds::class.java,
@@ -55,6 +57,7 @@ internal object NonMainFeatures {
             // push 进程只剩通知抑制：微信在 :push 里构建通知，主进程装的 hook 收不到。
             com.AARCNoa.zhiyou.utils.TargetProcesses.PROC_PUSH -> listOf(
                 HideContactsNotifications.meta("隐藏联系人通知抑制", listOf("API")),
+                BlockAllMentionNotifications.meta("屏蔽@全体成员提醒", listOf("聊天")),
             )
 
             com.AARCNoa.zhiyou.utils.TargetProcesses.PROC_APPBRAND -> listOf(

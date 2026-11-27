@@ -1,18 +1,18 @@
 package com.AARCNoa.zhiyou.features.items.system
 
-import android.content.Context
-import androidx.compose.material3.Text
 import com.AARCNoa.zhiyou.dexkit.abc.IResolveDex
 import com.AARCNoa.zhiyou.dexkit.dsl.dexMethod
+import com.AARCNoa.zhiyou.features.core.ApiFeature
 import com.AARCNoa.zhiyou.features.core.Feature
-import com.AARCNoa.zhiyou.features.core.SwitchFeature
-import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
-import com.AARCNoa.zhiyou.ui.content.TextButton
-import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.HostInfo
 
+/**
+ * Java 层反检测，静默功能：没有开关，随模块启动常驻生效。
+ *
+ * Google Play 版微信没有这条检测，强行 hook 反而可能闪退，因此运行时自动跳过。
+ */
 @Feature(name = "禁止微信检测 Xposed", categories = ["系统与隐私"], description = "防止微信检测 Xposed 框架是否存在")
-object PreventXposedDetection : SwitchFeature(), IResolveDex {
+object PreventXposedDetection : ApiFeature(), IResolveDex {
 
     private val methodCheckStackTraceElements by dexMethod(allowFailure = true) {
         searchPackages("com.tencent.mm.app")
@@ -37,21 +37,5 @@ object PreventXposedDetection : SwitchFeature(), IResolveDex {
                 // 兜底异常捕获，防止单条 Hook 异常导致微信主线程崩溃
             }
         }
-    }
-
-    override fun onBeforeToggle(newState: Boolean, context: Context): Boolean {
-        if (newState && HostInfo.isHostGooglePlay) {
-            showComposeDialog(context) {
-                AlertDialogContent(
-                    title = { Text("禁止微信检测 Xposed") },
-                    text = {
-                        Text("Google Play 版微信无此检测, 开启可能导致闪退, 已关闭功能!")
-                    },
-                    confirmButton = { TextButton(onDismiss) { Text("取消") } })
-            }
-            return false
-        }
-
-        return true
     }
 }

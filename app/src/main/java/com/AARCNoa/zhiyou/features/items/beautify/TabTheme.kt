@@ -209,7 +209,7 @@ object TabTheme : ClickableFeature() {
                             result = null
                         }
                     }
-                WeLogger.i(TAG, "bar bg guard installed: " + setterName)
+                WeLogger.d(TAG, "bar bg guard installed: " + setterName)
             }.onFailure {
                 WeLogger.w(TAG, "install guard " + setterName + " failed: " + (it.message ?: ""))
             }
@@ -217,7 +217,7 @@ object TabTheme : ClickableFeature() {
     }
 
     private fun applyTheme() {
-        WeLogger.i(TAG, "applyTheme: installing LauncherUI doOnCreate hook")
+        WeLogger.d(TAG, "applyTheme: installing LauncherUI doOnCreate hook")
         WeMainActivityBeautifyApi.methodDoOnCreate.hookAfter {
             try {
                 val activity = thisObject.reflekt()
@@ -250,7 +250,7 @@ object TabTheme : ClickableFeature() {
                             val root = a.window?.decorView as? ViewGroup ?: return@hookAfter
                             runCatching { makeTopBarsTransparent(root) }
                         }
-                    WeLogger.i(TAG, "title bar refresh hook installed")
+                    WeLogger.d(TAG, "title bar refresh hook installed")
                 }.onFailure {
                     WeLogger.w(TAG, "hook onResume for bar refresh failed: " + (it.message ?: ""))
                 }

@@ -75,7 +75,7 @@ object RemoveLimitsDuringCalls : SwitchFeature(), IResolveDex {
             }
         }
 
-        WeLogger.i(TAG, "通话限制移除：已 hook $hooked 个；跳过 ${skipped.size} 个${if (skipped.isEmpty()) "" else " -> $skipped"}")
+        WeLogger.d(TAG, "通话限制移除：已 hook $hooked 个；跳过 ${skipped.size} 个${if (skipped.isEmpty()) "" else " -> $skipped"}")
         if (hooked == 0) {
             WeLogger.w(TAG, "一个都没 hook 上，功能不会生效（微信可能改了这个类的日志串）")
         }

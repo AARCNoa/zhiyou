@@ -1,8 +1,7 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
-import android.os.Message
+import com.AARCNoa.zhiyou.features.core.ApiFeature
 import com.AARCNoa.zhiyou.features.core.Feature
-import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.utils.reflection.ClassLoaders
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.invokeOriginal
@@ -11,7 +10,7 @@ import de.robv.android.xposed.XC_MethodReplacement
 import de.robv.android.xposed.XposedBridge
 
 /**
- * 聊天页「附近直播」浮窗崩溃防御。
+ * 聊天页「附近直播」浮窗崩溃防御，静默功能：没有开关，随模块启动常驻生效。
  *
  * 实测崩溃（微信 8.0.80 / Android 16，小米 shennong）：
  * ```
@@ -44,7 +43,7 @@ import de.robv.android.xposed.XposedBridge
     categories = ["聊天"],
     description = "修复聊天页「附近直播」浮窗初始化的闪退"
 )
-object ChatLivePreviewCrashGuard : SwitchFeature() {
+object ChatLivePreviewCrashGuard : ApiFeature() {
 
     private const val TAG = "ChatLivePreviewCrashGuard"
 
@@ -65,17 +64,15 @@ object ChatLivePreviewCrashGuard : SwitchFeature() {
     private const val PREVIEW_VIEW_CLASS =
         "com.tencent.mm.plugin.finder.nearby.live.view.NearbyLivePreviewView"
 
-    override val defaultEnabled: Boolean = true
-
     /**
      * 该 NPE 只出现在 8.0.80 及以上；8.0.79 的崩溃栈里（`cn2.n0` / `pa6.n`）没有可挂的普通方法，
-     * 等于没有可防御的对象。按版本判定为「当前版本不适用」，避免每次启动刷一条「找不到挂点」的告警。
+     * 等于没有可防御的对象，直接跳过，避免每次启动刷一条「找不到挂点」的日志。
      */
-    override val unavailableReason: String?
-        get() = if (hostVersionAtLeast(8, 0, 80)) null
-        else "该闪退只出现在微信 8.0.80 及以上，当前版本不需要此防御"
-
     override fun onEnable() {
+        if (!hostVersionAtLeast(8, 0, 80)) {
+            WeLogger.d(TAG, "微信版本低于 8.0.80，不需要该防御")
+            return
+        }
         // 挂点一：上游用的延迟任务（部分 8.0.80 渠道包有这个类）。命中就不再挂第二层。
         if (hookDelayedTask()) return
         // 挂点二：直接挂浮窗控件自己。类名未混淆；8.0.80（versionCode 3200）实测没有 iq0.o。

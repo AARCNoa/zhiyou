@@ -10,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,6 +75,11 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.AARCNoa.zhiyou.features.core.BaseFeature
+import com.AARCNoa.zhiyou.features.core.FeaturesLoader
+import com.AARCNoa.zhiyou.preferences.WePrefs
+import com.AARCNoa.zhiyou.utils.android.showToast
+import kotlinx.coroutines.delay
+import org.json.JSONArray
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -126,6 +133,20 @@ internal const val HOME_SHEET_ENABLED = "enabled"
 internal const val HOME_SHEET_ALL = "all"
 internal const val HOME_SHEET_CATEGORIES = "categories"
 
+private const val SEARCH_HISTORY_KEY = "home_feature_search_history"
+private const val SEARCH_HISTORY_LIMIT = 10
+
+private fun loadSearchHistory(): List<String> = runCatching {
+    val json = JSONArray(WePrefs.getStringOrDef(SEARCH_HISTORY_KEY, "[]"))
+    List(json.length()) { json.getString(it) }.filter { it.isNotBlank() }
+}.getOrDefault(emptyList())
+
+private fun saveSearchHistory(history: List<String>) {
+    val json = JSONArray()
+    history.forEach(json::put)
+    WePrefs.putString(SEARCH_HISTORY_KEY, json.toString())
+}
+
 /** 主页卡片间距：品牌头 → 激活 → 统计 → 信息，四段共用这一个值。 */
 private val HOME_CARD_GAP = 14.dp
 
@@ -143,6 +164,7 @@ private fun LazyListScope.homeCard(key: String, content: @Composable () -> Unit)
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomePager(
     onOpenModuleHealth: () -> Unit,
@@ -171,6 +193,15 @@ fun HomePager(
     val searching = query.isNotBlank()
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    var searchHistory by remember { mutableStateOf(loadSearchHistory()) }
+
+    fun recordSearch(rawQuery: String) {
+        val term = rawQuery.trim()
+        if (term.isEmpty()) return
+        searchHistory = (listOf(term) + searchHistory.filterNot { it.equals(term, ignoreCase = true) })
+            .take(SEARCH_HISTORY_LIMIT)
+        saveSearchHistory(searchHistory)
+    }
 
     val searchableItems = remember {
         // 搜索**显式排除「密友功能」分类**：避免随便搜一个词就把密友入口暴露出来。
@@ -196,6 +227,7 @@ fun HomePager(
     // 返回键：有内容先清空，空了再收起搜索框。
     BackHandler(enabled = searchExpanded) {
         if (searching) {
+            recordSearch(query)
             queryState.clearText()
         } else {
             searchExpanded = false
@@ -235,11 +267,16 @@ fun HomePager(
                         closeDescription = "收起搜索",
                         onClose = {
                             if (searching) {
+                                recordSearch(query)
                                 queryState.clearText()
                             } else {
                                 searchExpanded = false
                                 keyboard?.hide()
                             }
+                        },
+                        onSearch = {
+                            recordSearch(query)
+                            keyboard?.hide()
                         },
                     )
                 } else {
@@ -289,32 +326,91 @@ fun HomePager(
                 )
             }
         } else {
-            // ---- 搜索结果：直接替换主页内容，就地开关 ----
-            if (filteredItems.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 48.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = if (searching) "未匹配到任何相关功能" else "输入关键词搜索功能",
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
+            // ---- 搜索历史 / 搜索结果：直接替换主页内容 ----
+            when {
+                !searching && searchHistory.isNotEmpty() -> {
+                    item(key = "search_history_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 4.dp, top = 16.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = OutlinedIcons.History,
+                                contentDescription = null,
+                                tint = WxPalette.textSecondary(),
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "搜索历史",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = WxPalette.textPrimary(),
+                            )
+                            Spacer(Modifier.weight(1f))
+                            SheetTextAction(
+                                text = "清空记录",
+                                onClick = {
+                                    searchHistory = emptyList()
+                                    WePrefs.remove(SEARCH_HISTORY_KEY)
+                                },
+                            )
+                        }
+                    }
+                    item(key = "search_history_chips") {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        ) {
+                            searchHistory.forEach { term ->
+                                Text(
+                                    text = term,
+                                    fontSize = 13.sp,
+                                    color = WxPalette.textPrimary(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .padding(end = 8.dp, bottom = 8.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(WxPalette.cardBackground())
+                                        .clickable {
+                                            queryState.edit { replace(0, length, term) }
+                                            recordSearch(term)
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                )
+                            }
+                        }
                     }
                 }
-            } else {
-                itemsIndexed(filteredItems, key = { _, item -> item.name }) { index, item ->
-                    CatRow(
-                        item = item,
-                        checked = switchStates[item.name]
-                            ?: (item.effectiveEnabled == true),
-                        onCheckedChange = { switchStates[item.name] = it },
-                        modifier = Modifier
-                            .then(if (index == 0) Modifier.padding(top = 12.dp) else Modifier)
-                            .groupedCardItem(index, filteredItems.size, dividerStart = 14.dp),
-                    )
+
+                filteredItems.isEmpty() -> {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 48.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (searching) "未匹配到任何相关功能" else "输入关键词搜索功能",
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
+                        }
+                    }
+                }
+
+                else -> {
+                    itemsIndexed(filteredItems, key = { _, item -> item.name }) { index, item ->
+                        CatRow(
+                            item = item,
+                            checked = switchStates[item.name]
+                                ?: (item.effectiveEnabled == true),
+                            onCheckedChange = { switchStates[item.name] = it },
+                            modifier = Modifier
+                                .then(if (index == 0) Modifier.padding(top = 12.dp) else Modifier)
+                                .groupedCardItem(index, filteredItems.size, dividerStart = 14.dp),
+                        )
+                    }
                 }
             }
         }
@@ -351,13 +447,29 @@ internal fun HomeSheetHost(
     val allItems = userVisibleFeatures
     // null = 一级列表；非空 = 已进入该分类（二级）。kind 变化时复位。
     var category by remember(kind) { mutableStateOf<String?>(null) }
+    var pendingFeatureName by remember(kind) { mutableStateOf<String?>(null) }
 
     // 二级页面存在时优先消费返回键：先回分类列表，而不是整个收起。
-    BackHandler(enabled = category != null) { category = null }
+    BackHandler(enabled = category != null) {
+        category = null
+        pendingFeatureName = null
+    }
 
-    // 进/出分类都从顶部开始，避免沿用上一份清单的滚动位置（两百多项滚到一半再进分类会很怪）。
     val listState = rememberLazyListState()
-    LaunchedEffect(category) { listState.scrollToItem(0) }
+    LaunchedEffect(category, pendingFeatureName) {
+        val opened = category
+        val target = pendingFeatureName
+        if (opened == null || target == null) {
+            listState.scrollToItem(0)
+        } else {
+            val items = allItems.filter { opened in it.categories }
+            val index = items.indexOfFirst { it.name == target }
+            if (index >= 0) {
+                val masterSwitchOffset = if (opened == SwitchFeature.CATEGORY_WITH_MASTER_SWITCH) 1 else 0
+                listState.scrollToItem(index + masterSwitchOffset)
+            }
+        }
+    }
 
     // 分类统计：进入/退出二级分类时重算。
     // key 里必须带 category —— 只写 kind 的话，在二级改完开关退回一级，
@@ -419,7 +531,10 @@ internal fun HomeSheetHost(
                 ) {
                     SheetTextAction(
                         text = "\u2039 分类",
-                        onClick = { category = null },
+                        onClick = {
+                            category = null
+                            pendingFeatureName = null
+                        },
                         fontSize = 14,
                     )
                     Spacer(Modifier.width(6.dp))
@@ -475,7 +590,10 @@ internal fun HomeSheetHost(
                                     if (total > 0) on.toFloat() / total else 0f,
                                     durationMs = 600 + index * 60,
                                 ),
-                                onClick = { category = name },
+                                onClick = {
+                                    pendingFeatureName = null
+                                    category = name
+                                },
                             )
                         }
                     }
@@ -487,6 +605,7 @@ internal fun HomeSheetHost(
                         allItems
                     },
                     onPick = { feature ->
+                        pendingFeatureName = feature.name
                         category = feature.categories.firstOrNull() ?: "未分类"
                     },
                 )
@@ -651,13 +770,32 @@ private fun HomeCard(
 
 @Composable
 private fun ActivationCard(onOpenHealth: () -> Unit) {
-    // 自检数据读的是 DexKit 缓存，不会触发重新扫描，因此可以在组合期直接取。
-    val anchors = remember { ModuleDiagnostics.anchors() }
+    var resolving by remember { mutableStateOf(FeaturesLoader.isResolving) }
+    var progress by remember { mutableStateOf(FeaturesLoader.resolutionProgress) }
+    var refreshKey by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        var wasResolving = FeaturesLoader.isResolving
+        while (true) {
+            delay(500)
+            val nowResolving = FeaturesLoader.isResolving
+            resolving = nowResolving
+            progress = FeaturesLoader.resolutionProgress
+            if (wasResolving && !nowResolving) refreshKey++
+            wasResolving = nowResolving
+        }
+    }
+    // 自检数据读的是 DexKit 缓存，不会触发重新扫描，因此可以在组合期直接取；
+    // 适配结束后 refreshKey 变化，重新读一次最新锚点。
+    val anchors = remember(refreshKey) { ModuleDiagnostics.anchors() }
     val (okCount, totalCount) = ModuleDiagnostics.anchorStats(anchors)
     // 与自检页同一口径：解析不到、且没有「已由新路径替代 / 微信已移除」说明的，才算待适配。
     val pending = anchors.count { it.needsAdaptation() }
-    val healthy = pending == 0
-    val accent = if (healthy) WxPalette.Ok else WxPalette.Warning
+    val healthy = pending == 0 && !resolving
+    val accent = when {
+        resolving -> WxPalette.Warning
+        healthy -> WxPalette.Ok
+        else -> WxPalette.Warning
+    }
 
     HomeCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -685,10 +823,14 @@ private fun ActivationCard(onOpenHealth: () -> Unit) {
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    text = if (healthy) {
-                        "自检正常 · 已解析 $okCount/$totalCount"
-                    } else {
-                        "自检：$pending 项待适配 · 已解析 $okCount/$totalCount"
+                    text = when {
+                        resolving -> {
+                            val p = progress
+                            if (p != null) "正在适配微信版本 · ${p.first}/${p.second}"
+                            else "正在适配微信版本…"
+                        }
+                        healthy -> "自检正常 · 已解析 $okCount/$totalCount"
+                        else -> "自检：$pending 项待适配 · 已解析 $okCount/$totalCount"
                     },
                     fontSize = 12.sp,
                     color = WxPalette.textSecondary(),
@@ -701,7 +843,17 @@ private fun ActivationCard(onOpenHealth: () -> Unit) {
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .clickable { onOpenHealth() }
+                    .clickable {
+                        if (FeaturesLoader.isResolving) {
+                            val p = FeaturesLoader.resolutionProgress
+                            showToast(
+                                if (p != null) "正在适配中（${p.first}/${p.second}），请稍候…"
+                                else "正在适配中，请稍候…"
+                            )
+                        } else {
+                            onOpenHealth()
+                        }
+                    }
                     .padding(start = 8.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

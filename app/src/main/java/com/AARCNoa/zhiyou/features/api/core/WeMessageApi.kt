@@ -596,8 +596,22 @@ object WeMessageApi : ApiFeature(), IResolveDex {
         }
 
         if (!methodImageSendEntry.isPlaceholder) {
-            val taskClassName = methodImageSendEntry.method.parameterTypes[1]
-            classImageTask.setDescriptor(taskClassName.name)
+            // DexKit 命中的方法不一定真能被宿主 ClassLoader 反射到：DexKit 读的是 APK 里的 dex，
+            // 个别版本/机型上宿主实际加载的同名类会与 dex 里的不一致（8.0.80 实测
+            // Lc70/r;->f7(...) 被命中但反射不到，NoSuchMethodException）。
+            // 这里绝不能让一次锚点校验失败掀翻整个 WeMessageApi 解析——否则「API/消息发送服务」
+            // 整体不可用，AI 自动回复等所有依赖消息发送的功能一起失效。
+            // 失败时保留 classImageTask 自己的匹配结果，下面对 8.0.67+ 还会用发送入口入参校准。
+            runCatching { methodImageSendEntry.method.parameterTypes[1] }
+                .onSuccess { classImageTask.setDescriptor(it.name) }
+                .onFailure {
+                    WeLogger.w(
+                        TAG,
+                        "methodImageSendEntry 命中但无法反射" +
+                            "(${methodImageSendEntry.getDescriptorString()})，" +
+                            "保留 classImageTask 原解析结果: ${it.message}",
+                    )
+                }
         } else {
             WeLogger.w(TAG, "methodImageSendEntry 定位失败，图片发送链路降级")
         }
@@ -640,6 +654,11 @@ object WeMessageApi : ApiFeature(), IResolveDex {
                         "sendImage 定位到 ${picked.className}::${picked.methodName}" +
                             " (候选 ${methodImgUploadFeatureServiceSendImage.candidates.size} 个)",
                     )
+                    // 8.0.67+ 的发送入口唯一入参就是图片任务类，用它校准 classImageTask，
+                    // 这样即使老版本的 methodImageSendEntry 锚点命中错误，发图链路仍可用。
+                    runCatching { methodImgUploadFeatureServiceSendImage.method.parameterTypes[0] }
+                        .onSuccess { classImageTask.setDescriptor(it.name) }
+                        .onFailure { WeLogger.w(TAG, "classImageTask 校准失败: ${it.message}") }
                 }
             }.onFailure { WeLogger.w(TAG, "sendImage 择优失败: ${it.message}") }
 

@@ -76,7 +76,7 @@ object RemoveMomentsAds : SwitchFeature(), WeDatabaseListenerApi.IInsertListener
             WeLogger.e(TAG, "Hook ③ 时间线页面生命周期 注册失败", e)
         }
 
-        WeLogger.i(TAG, "========== 拦截朋友圈广告: 全部 Hook 注册完成 ==========")
+        WeLogger.d(TAG, "========== 拦截朋友圈广告: 全部 Hook 注册完成 ==========")
     }
 
     override fun onDisable() {

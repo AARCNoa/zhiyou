@@ -157,6 +157,12 @@ object AiSuggestGesture : ApiFeature() {
         // 输入栏范围内的双击是选词，抢过来会很难受。
         if (footer != null && insideInputBar(footer, event)) return
 
+        // 卡片已经开着：再双击就是「换一批」，与卡片右上角 ↻ 等价。不必再解析会话。
+        if (AiSuggestOverlay.refreshCurrent()) {
+            lastTriggerAt = now
+            return
+        }
+
         val talker = resolveTalker(activity, footer, decor)
         if (talker == null) {
             WeLogger.d(TAG, "双击：没有解析到会话（输入栏=${footer != null}）")
@@ -189,7 +195,7 @@ object AiSuggestGesture : ApiFeature() {
                     WeLogger.d(TAG, "双击：$talker 忙碌中（$text）")
                     activity.runOnUiThread {
                         if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-                        AiSuggestOverlay.showNotice(activity, text)
+                        AiSuggestOverlay.showNotice(activity, text, footer)
                     }
                     return@Runnable
                 }
@@ -216,6 +222,7 @@ object AiSuggestGesture : ApiFeature() {
                         title = title,
                         memoryCount = profile.memories.size,
                         tagCount = profile.tags.size,
+                        footer = footer,
                     )
                 }
             },

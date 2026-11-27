@@ -187,7 +187,7 @@ object TemporaryCall : ClickableFeature(), WeContactPrefsScreenApi.IContactInfoP
                 lastFakeChatroomId = null
                 mainHandler.postDelayed({ purgeFakeChatroom(fakeId, notify = true) }, PURGE_DELAY_MS)
             }
-            WeLogger.i(TAG, "通话结束清理 hook 已安装: ${impl.name}.${method.name}")
+            WeLogger.d(TAG, "通话结束清理 hook 已安装: ${impl.name}.${method.name}")
         }.onFailure { WeLogger.w(TAG, "hook 通话结束失败", it) }
     }
 
@@ -256,7 +256,7 @@ object TemporaryCall : ClickableFeature(), WeContactPrefsScreenApi.IContactInfoP
                 m.isAccessible = true
                 m.hookBefore { fakePickerActive = false }
             }
-            WeLogger.i(TAG, "选成员页生命周期 hook 已安装")
+            WeLogger.d(TAG, "选成员页生命周期 hook 已安装")
         }.onFailure { WeLogger.w(TAG, "hook 选成员页失败", it) }
     }
 
@@ -275,7 +275,7 @@ object TemporaryCall : ClickableFeature(), WeContactPrefsScreenApi.IContactInfoP
             method.hookAfter {
                 if (fakePickerActive) result = MAX_CALL_MEMBERS
             }
-            WeLogger.i(TAG, "人数上限 hook 已安装")
+            WeLogger.d(TAG, "人数上限 hook 已安装")
         }.onFailure { WeLogger.w(TAG, "hook 人数上限失败", it) }
     }
 

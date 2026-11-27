@@ -1,23 +1,23 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
-  "publishedAt": "2026-11-24T11:42:00Z",
-  "changelog": "总览：新增今日总结，汇总当天约定、群摘要与工作群任务；工作群可生成进度汇报。\n朋友圈：新增「帮我评论」，读动态文字与图片生成三条评论，点一条复制。\n应用内更新：设置里可检查新版本，自动选择可用下载线路。\n适配微信 8.0.80，全部功能锚点已就绪。\n界面：分类图标、侧边栏、日志页与 AI 页整体调整。",
+  "versionCode": 3,
+  "versionName": "1.2",
+  "publishedAt": "2026-11-27T08:28:08Z",
+  "changelog": "【新增】\n· 屏蔽 @全体成员提醒，保留群消息及单独 @我\n· 朋友圈伪评论，仅本机显示\n· 智能推荐增加编辑按钮，点击把回复内容放进输入框\n· 智能推荐弹出后再次双击可刷新推荐内容\n· 搜索历史记录，可复用和清空\n· 已启用功能点击后直接跳到对应功能的位置\n\n【修复】\n· 网络临时抖动被误判为 AI 功能已关闭\n· 点击语音或视频聊天崩溃\n· 部分智能回复失效\n· 智能推荐生成不可用\n· 对话归拢性能问题\n\n【优化】\n· 主页总览按钮在未开启相关功能时自动隐藏\n· 智能推荐显示期间离开聊天页自动关闭\n· 对话归拢与「长按添加到归拢」合并，开启归拢即可使用\n· 对话归拢头像与好友自定义头像解耦，文件夹头像不再依赖后者\n· 对话归拢默认显示最新消息发送者的头像，不再显示空头像\n· 默认常驻的防护类功能不再出现在已启用清单\n· 自动回复性能优化\n· 智能推荐优化记忆与标签注入方式，减少 token 消耗\n· 优化生成速度，减少翻查更早记忆的多轮请求\n· 安装包体积精简",
   "assets": [
     {
       "flavor": "legacy",
       "abi": "arm64-v8a",
       "urls": [
-        "https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-arm64-v8a-release.apk",
-        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-arm64-v8a-release.apk"
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.2/app-legacy-arm64-v8a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.2/app-legacy-arm64-v8a-release.apk"
       ]
     },
     {
       "flavor": "legacy",
       "abi": "armeabi-v7a",
       "urls": [
-        "https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-armeabi-v7a-release.apk",
-        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.1/app-legacy-armeabi-v7a-release.apk"
+        "https://github.com/AARCNoa/zhiyou/releases/download/v1.2/app-legacy-armeabi-v7a-release.apk",
+        "https://gh-proxy.com/https://github.com/AARCNoa/zhiyou/releases/download/v1.2/app-legacy-armeabi-v7a-release.apk"
       ]
     }
   ]

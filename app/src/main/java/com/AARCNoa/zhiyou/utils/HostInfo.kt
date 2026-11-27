@@ -29,8 +29,18 @@ object HostInfo {
     val isModule: Boolean get() = _info.hostSpecies == HostSpecies.WeKit
     val isHost: Boolean get() = !isModule
 
+    /**
+     * 宿主是否为 Google Play 版。
+     *
+     * 读取的是微信自己的 `BuildConfig`，该 class 只存在于微信进程：模块自己的设置页进程
+     * （包名 com.AARCNoa.zhiyou）加载不到它，会抛 NoClassDefFoundError。设置页的
+     * `effectiveEnabled` 会用到按此判断的「默认开启」功能，因此这里必须吞掉异常退回
+     * false（视为非 Play），绝不能让模块自己闪退。
+     */
     val isHostGooglePlay: Boolean by lazy {
-        com.tencent.mm.boot.BuildConfig.BUILD_TAG.contains("GP", ignoreCase = true)
+        runCatching {
+            com.tencent.mm.boot.BuildConfig.BUILD_TAG.contains("GP", ignoreCase = true)
+        }.getOrDefault(false)
     }
 
     fun init(application: Application) {

@@ -18,6 +18,7 @@ fn main() {
     }
 
     build_vpx_decoder(&target_os);
+    build_shadowhook(&target_os);
 
     let bindings = bindgen::Builder::default()
         .header("include/native_hook.h")
@@ -58,6 +59,66 @@ fn build_vpx_decoder(target_os: &str) {
     }
 }
 
+/// 把 ShadowHook（ByteDance android-inline-hook）静态编进本 .so。
+///
+/// LSPosed 的 `hook_func` 底层是 lsplant，只能改 ART 方法，对 libc 符号无效；
+/// ShadowHook 直接改写目标函数入口，能覆盖 `openat`/`ptrace`/`syscall` 等。
+fn build_shadowhook(target_os: &str) {
+    if target_os != "android" {
+        return;
+    }
+
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+    let arch_dir = match arch.as_str() {
+        "aarch64" => "arm64",
+        "arm" => "arm",
+        other => panic!("unsupported Android arch for shadowhook: {other}"),
+    };
+
+    let root = Path::new("third_party/shadowhook");
+    let mut build = cc::Build::new();
+    build
+        .flag("-std=c11")
+        .flag("-Os")
+        .flag("-ffunction-sections")
+        .flag("-fdata-sections")
+        .define("SHADOWHOOK_VERSION", "\"2.0.0\"")
+        .include(root)
+        .include(root.join("include"))
+        .include(root.join("arch").join(arch_dir))
+        .include(root.join("common"))
+        .include(root.join("third_party/xdl"))
+        .include(root.join("third_party/bsd"))
+        .include(root.join("third_party/lss"))
+        .warnings(false);
+
+    // 上游 CMake 对 32 位 ARM 固定 ANDROID_ARM_MODE=arm：sh_glue.S 是 ARM 指令，
+    // 与默认的 Thumb 模式不一致。
+    if arch == "arm" {
+        build.flag("-marm");
+    }
+
+    add_shadowhook_sources(&mut build, root);
+    add_shadowhook_sources(&mut build, &root.join("arch").join(arch_dir));
+    add_shadowhook_sources(&mut build, &root.join("common"));
+    add_shadowhook_sources(&mut build, &root.join("third_party/xdl"));
+
+    println!("cargo:rerun-if-changed=third_party/shadowhook");
+    build.compile("shadowhook");
+}
+
+fn add_shadowhook_sources(build: &mut cc::Build, dir: &Path) {
+    for entry in fs::read_dir(dir).expect("failed to read shadowhook source directory") {
+        let path = entry.expect("failed to read shadowhook source entry").path();
+        if matches!(
+            path.extension().and_then(|e| e.to_str()),
+            Some("c") | Some("S")
+        ) {
+            build.file(path);
+        }
+    }
+}
+
 fn build_android_libvpx() -> PathBuf {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is missing"));
     let archive = out_dir.join(format!("libvpx-{LIBVPX_VERSION}.tar.gz"));
@@ -87,6 +148,14 @@ fn build_android_libvpx() -> PathBuf {
             .min(8);
         let status = Command::new("make")
             .arg(format!("-j{jobs}"))
+            // libvpx 的 asm 规则是 `$(AS) $(ASFLAGS) -o $@ $<`，面向真正的 GNU as
+            // （汇编器天然只产出 .o）。这里 AS 是 clang 驱动，缺 `-c` 时会把 .S
+            // 当成要链接的可执行文件，报 `undefined symbol: main`。命令行变量
+            // 优先级最高，且不影响 libs-*.mk 里的 ASFLAGS（-march/-mfpu/-I 等）。
+            .arg(format!(
+                "AS={} -c",
+                target_tool("CC", &env::var("TARGET").expect("TARGET is missing")).display()
+            ))
             .current_dir(&build)
             .status()
             .expect("failed to run make while building libvpx");
@@ -159,7 +228,16 @@ fn configure_android_libvpx(source: &Path, build: &Path) {
     let toolchain = cc
         .parent()
         .expect("Android compiler has no parent directory");
-    let status = Command::new(source.join("configure"))
+    // Windows 上 configure 是 #!/bin/sh 脚本，CreateProcess 不能直接执行（错误 193），
+    // 必须显式交给 sh；同时 sh 只认正斜杠，参数里的路径先做转换。
+    let mut cmd = if cfg!(windows) {
+        let mut c = Command::new(shell_program());
+        c.arg(posix_path(&source.join("configure")));
+        c
+    } else {
+        Command::new(source.join("configure"))
+    };
+    let status = cmd
         .arg(format!("--target={vpx_target}"))
         .args([
             "--disable-examples",
@@ -187,6 +265,24 @@ fn configure_android_libvpx(source: &Path, build: &Path) {
         .status()
         .expect("failed to configure libvpx");
     assert!(status.success(), "failed to configure libvpx");
+}
+
+/// 执行 `#!` 脚本用的 shell。Windows 上由构建环境把 Git 的 `usr/bin` 放进 PATH，
+/// 也可以用 `WCX_SH` 显式指定。
+fn shell_program() -> PathBuf {
+    env::var_os("WCX_SH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                PathBuf::from("sh")
+            } else {
+                PathBuf::from("/bin/sh")
+            }
+        })
+}
+
+fn posix_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn target_tool(prefix: &str, target: &str) -> PathBuf {

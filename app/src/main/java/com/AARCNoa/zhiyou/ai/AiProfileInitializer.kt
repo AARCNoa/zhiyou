@@ -751,6 +751,9 @@ object AiProfileInitializer {
             // 单片是「按窗口全量」，不抽样也不按条数截断；十几万字的片加上深度思考，
             // 90 秒对长片不够，会直接超时判失败；180 秒留出余量。
             readTimeoutMs = 180_000,
+            // 后台批量任务：单片网络抖动不该把首页的「AI 已激活」翻成未激活，
+            // 失败只在档案自己的状态里体现（fail()）。
+            affectStatus = false,
             // 思考跟随全局开关。请求里不带 max_tokens，输出长度由服务商与模型决定；
             // 思考与工具调用抢的是同一份输出预算，服务商默认值偏小时 arguments 会被截成
             // 半截 JSON —— 那种片在下文按 finish_reason=length 记一笔 W。
@@ -886,6 +889,7 @@ object AiProfileInitializer {
             tools = tools,
             temperature = 0.3,
             readTimeoutMs = 180_000,
+            affectStatus = false,
         )
         AiDebug.appendResponse(dumpPath, result)
 

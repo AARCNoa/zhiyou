@@ -8,8 +8,19 @@ import com.AARCNoa.zhiyou.features.core.SwitchFeature
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.getTopMostActivity
 import com.AARCNoa.zhiyou.utils.reflection.ClassLoaders
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.SystemClock
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.RelativeLayout
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 
@@ -27,12 +38,11 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
      * `K()V` = resumePlay、`J()Z` = resumeByDataGain、`onPrepared()` = 缓冲完成后的自动 start。
      */
     private val PLAYER_CLASSES = arrayOf(
-        // 8.0.80 实测：改善版时间线（ImproveSnsTimelineUI）与广告卡的播放器在这三个包里。
+        // 8.0.80 的改善版时间线（ImproveSnsTimelineUI）与广告卡的播放器在这三个包里。
         "com.tencent.mm.plugin.sns.ui.OnlineVideoView",
         "com.tencent.mm.plugin.sns.ui.video.SnsTimelineVideoView",
         "com.tencent.mm.plugin.sns.ad.timeline.video.online.CardOnlineVideoView",
-        // 后两条是按早期资料写的旧包名，当前版本不存在；留着零成本（Class.forName 失败即跳过），
-        // 万一老版本真用这两个名字也能命中。
+        // 旧版微信的包名；当前版本不存在时 Class.forName 失败即跳过。
         "com.tencent.mm.plugin.sns.ui.SnsTimelineVideoView",
         "com.tencent.mm.plugin.sns.ui.CardOnlineVideoView",
     )
@@ -53,6 +63,12 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
      * 用户点播放到真正准备完可能隔几秒，1.2 秒窗口会导致「点了播放却播不了」。
      */
     private const val PREPARED_WINDOW_MS = 8_000L
+
+    /** 自绘播放标识挂在视频 View 上的 tag key（任意 int，不占资源 id）。 */
+    private const val BADGE_TAG = 0x7E0BA9D1
+
+    /** 播放标识直径（dp）。 */
+    private const val BADGE_SIZE_DP = 44
 
     /** 播放器接口：`OnlineVideoView` 持有它的一个实例字段（`B`）。 */
     private const val PLAYER_INTERFACE = "com.tencent.mm.pluginsdk.ui.tools.e4"
@@ -83,8 +99,7 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
     }
 
     override fun onEnable() {
-        // Hook ① 是「返回 boolean 就自动播」的判定，强制 false 即可；
-        // Hook ② 的 invoke 返回 Object，[forceFalse] 不会动它——留着给返回 boolean 的旧版本。
+        // 两个锚点都走 forceFalse：返回 boolean 才置 false，其它返回类型不动。
         // 锚点解析不到时 hookBefore 内部会跳过（并打 D），不会拿占位方法去 hook。
         forceFalse(methodCheckAutoPlay, "checkAutoPlay")
         forceFalse(methodImproveAutoPlayInvoke, "ImproveAutoPlay")
@@ -157,17 +172,52 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
             if (hookResume(clazz, "K", isVoid = true)) installed += "$simple.K()V"
             if (hookResume(clazz, "J", isVoid = false)) installed += "$simple.J()Z"
             // 关键：缓冲完成后播放器自己在这里 start()，不经过 K/J。
-            // 只拦 resume 的话，滑动停下 → prepare → onPrepared → 照旧自动播。
-            if (hookResume(clazz, "onPrepared", isVoid = true, windowMs = PREPARED_WINDOW_MS)) {
-                installed += "$simple.onPrepared()V"
-            }
+            // 但 onPrepared 本身不能拦：拦掉它会让播放器一直停在「准备中」，
+            // 界面上就是加载圈一直转。只放行它、执行完立即暂停。
+            if (hookPrepared(clazz)) installed += "$simple.onPrepared()V"
+            if (hookPauseBadge(clazz)) installed += "$simple.F()V"
         }
         if (installed.isEmpty()) {
             WeLogger.w(TAG, "没有找到播放器恢复方法（K/J），只靠策略层拦截")
         } else {
             // 把具体类名列出来：只打数量的话，下次某个包名写错仍然看不出来。
-            WeLogger.i(TAG, "播放器拦截已安装：${installed.joinToString("、")}")
+            WeLogger.d(TAG, "播放器拦截已安装：${installed.joinToString("、")}")
         }
+    }
+
+    /**
+     * `onPrepared` 只做「执行完立即暂停」，不在 before 里跳过整个方法。
+     *
+     * 跳过 onPrepared 会让下载/状态机永远停在准备中，用户看到的是加载圈；
+     * 放行后它内部仍可能 start，所以 after 里马上调用微信自己的 pausePlay(F)。
+     */
+    private fun hookPrepared(clazz: Class<*>): Boolean {
+        val method = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "onPrepared" && it.parameterTypes.isEmpty() &&
+                    it.returnType == Void.TYPE
+            }
+        }.getOrNull() ?: run {
+            WeLogger.d(TAG, "${clazz.name.substringAfterLast('.')} 没有 onPrepared()V")
+            return false
+        }
+        val label = "${clazz.name.substringAfterLast('.')}.onPrepared"
+        return runCatching {
+            XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val view = param.thisObject as? View
+                    if (allowWithin(PREPARED_WINDOW_MS)) {
+                        view?.let { hideBadge(it) }
+                        return
+                    }
+                    noteBlocked(label)
+                    pausePlay(param.thisObject)
+                    view?.let { attachBadge(it) }
+                }
+            })
+        }.onFailure {
+            WeLogger.w(TAG, "hook $label 失败：${it.message}", it)
+        }.isSuccess
     }
 
     private fun hookResume(
@@ -190,7 +240,11 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
         val installed = runCatching {
             XposedBridge.hookMethod(method, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    if (allowWithin(windowMs)) return
+                    if (allowWithin(windowMs)) {
+                        // 用户自己点播放：收起暂停标识，交给微信原生的播放 UI。
+                        (param.thisObject as? View)?.let { hideBadge(it) }
+                        return
+                    }
                     noteBlocked(label)
                     blockedThisCall.set(true)
                     // 跳过整个方法：既不 start，也不执行后面的 startPlay / startTimer
@@ -206,6 +260,7 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
                     // （pausePlay：关 allowStart → e4.pause() → 回调 onPause）。
                     // 不要用 E()（pauseByDataBlock）：那条路是「数据不足」，UI 会一直转加载圈。
                     pausePlay(param.thisObject)
+                    (param.thisObject as? View)?.let { attachBadge(it) }
                 }
             })
         }.onFailure {
@@ -231,6 +286,94 @@ object DisableVideosAutoPlay : SwitchFeature(), IResolveDex {
             }
             c = c.superclass
         }
+    }
+
+    /**
+     * 暂停时补一个「播放」标识。
+     *
+     * 微信信息流视频没有播放三角，未播放时就是封面/首帧，和照片一样；
+     * 拦掉自动播放后用户分不清哪条是视频。这里在 `F()V` 暂停后挂一个
+     * 半透明圆底 + 白色三角，用户点播放时收起。
+     */
+    private fun hookPauseBadge(clazz: Class<*>): Boolean {
+        val method = runCatching {
+            clazz.declaredMethods.firstOrNull {
+                it.name == "F" && it.parameterTypes.isEmpty() && it.returnType == Void.TYPE
+            }
+        }.getOrNull() ?: return false
+        return runCatching {
+            XposedBridge.hookMethod(method, object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val view = param.thisObject as? View ?: return
+                    if (isFullscreenPage()) return
+                    attachBadge(view)
+                }
+            })
+        }.onFailure {
+            WeLogger.w(TAG, "hook ${clazz.name.substringAfterLast('.')}#F 失败", it)
+        }.isSuccess
+    }
+
+    private fun isFullscreenPage(): Boolean {
+        val name = getTopMostActivity()?.javaClass?.name ?: return false
+        return FULLSCREEN_PAGES.any { name.contains(it) }
+    }
+
+    /** 在视频 View 中央挂播放三角；已挂过就只恢复可见。 */
+    private fun attachBadge(view: View) {
+        val host = view as? ViewGroup ?: return
+        val existing = host.getTag(BADGE_TAG) as? View
+        if (existing != null && existing.parent === host) {
+            existing.visibility = View.VISIBLE
+            return
+        }
+        val size = dp(view.context, BADGE_SIZE_DP)
+        val badge = ImageView(view.context).apply {
+            setImageDrawable(badgeDrawable(view.context, size))
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val lp: ViewGroup.LayoutParams = when (host) {
+            is FrameLayout -> FrameLayout.LayoutParams(size, size, Gravity.CENTER)
+            is RelativeLayout -> RelativeLayout.LayoutParams(size, size).apply {
+                addRule(RelativeLayout.CENTER_IN_PARENT)
+            }
+            else -> ViewGroup.LayoutParams(size, size)
+        }
+        runCatching {
+            host.addView(badge, lp)
+            host.setTag(BADGE_TAG, badge)
+            WeLogger.d(TAG, "已挂上播放标识：${host.javaClass.simpleName}")
+        }.onFailure { WeLogger.w(TAG, "挂播放标识失败", it) }
+    }
+
+    /** 收起播放三角（用户开始播放 / 进入全屏页时）。 */
+    private fun hideBadge(view: View) {
+        val host = view as? ViewGroup ?: return
+        (host.getTag(BADGE_TAG) as? View)?.let { it.visibility = View.GONE }
+    }
+
+    private fun dp(context: android.content.Context, value: Int): Int =
+        (value * context.resources.displayMetrics.density + 0.5f).toInt()
+
+    /** 半透明圆底 + 白色三角，尺寸与微信自己的圆形按钮接近。 */
+    private fun badgeDrawable(context: android.content.Context, size: Int): Drawable {
+        val safe = size.coerceAtLeast(24)
+        val bitmap = Bitmap.createBitmap(safe, safe, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = 0x66000000
+        canvas.drawCircle(safe / 2f, safe / 2f, safe / 2f, paint)
+        paint.color = 0xFFFFFFFF.toInt()
+        val path = Path().apply {
+            moveTo(safe * 0.40f, safe * 0.29f)
+            lineTo(safe * 0.73f, safe * 0.50f)
+            lineTo(safe * 0.40f, safe * 0.71f)
+            close()
+        }
+        canvas.drawPath(path, paint)
+        return BitmapDrawable(context.resources, bitmap)
     }
 
     /** 拦截打点：2 秒内只打一条，既能确认「拦到了」，也不会把日志刷满。 */

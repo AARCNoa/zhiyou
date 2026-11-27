@@ -402,13 +402,16 @@ object WeLogger {
     }
 
     fun d(tag: String?, msg: String) {
+        // 详细日志只保留在 debug 包：release 下连 logcat 都不打，避免列表/绘制等
+        // 热路径上的 Log.d 同步写 logd 拖慢 UI（D 级本来就不落盘）。
+        if (!BuildConfig.DEBUG) return
         Log.d(TAG, "$tag: $msg")
-        // release 下 D 不落盘（enqueue 里同样会丢弃），这里提前返回省掉 Record 分配。
-        if (BuildConfig.DEBUG) enqueue(WriteTask.Record("D", tag, msg, null, System.currentTimeMillis()))
+        enqueue(WriteTask.Record("D", tag, msg, null, System.currentTimeMillis()))
     }
 
     fun v(tag: String?, msg: String) {
-        // V 只进 logcat：文件日志从不持久化 V（见 enqueue），无需构造 WriteTask。
+        // V 级同样只保留在 debug 包。
+        if (!BuildConfig.DEBUG) return
         Log.v(TAG, "$tag: $msg")
     }
 
@@ -430,11 +433,13 @@ object WeLogger {
     }
 
     fun d(tag: String?, msg: String, e: Throwable) {
+        if (!BuildConfig.DEBUG) return
         Log.d(TAG, "$tag: $msg", e)
-        if (BuildConfig.DEBUG) enqueue(WriteTask.Record("D", tag, msg, e, System.currentTimeMillis()))
+        enqueue(WriteTask.Record("D", tag, msg, e, System.currentTimeMillis()))
     }
 
     fun v(tag: String?, msg: String, e: Throwable) {
+        if (!BuildConfig.DEBUG) return
         Log.v(TAG, "$tag: $msg", e)
     }
 

@@ -42,21 +42,66 @@ use std::{
     mem::transmute,
     ptr,
     sync::{
-        Mutex, OnceLock,
+        Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
 use libc::{c_ulong, size_t, ssize_t};
 
-// bionic's errno accessor.
+// ShadowHook is compiled into this library (see build.rs). Unlike the LSPosed
+// `hook_func` callback — which is lsplant-backed and only works for ART
+// methods — it rewrites the entry of arbitrary native functions, so it can hook
+// libc/libdl symbols such as `openat`, `ptrace` and `syscall`.
 unsafe extern "C" {
-    fn __errno() -> *mut c_int;
+    fn shadowhook_init(mode: c_int, debuggable: bool) -> c_int;
+    fn shadowhook_hook_sym_addr(
+        sym_addr: *mut c_void,
+        new_addr: *mut c_void,
+        orig_addr: *mut *mut c_void,
+    ) -> *mut c_void;
+    fn shadowhook_unhook(stub: *mut c_void) -> c_int;
+    fn shadowhook_get_errno() -> c_int;
 }
 
-// The unwrapped variants of the LSPosed native-API callbacks.
-type RawHook = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut *mut c_void) -> c_int;
-type RawUnhook = unsafe extern "C" fn(*mut c_void) -> c_int;
+/// One hook per address, trampolines kept inside this library.
+const SHADOWHOOK_MODE_UNIQUE: c_int = 1;
+
+/// The address is already hooked (UNIQUE mode allows exactly one).
+const SHADOWHOOK_ERRNO_HOOK_UNIQUE_DUP: c_int = 16;
+
+// bionic does not export `__clear_cache`, and rustc does not link the
+// compiler-rt builtins that provide it, but Clang lowers ShadowHook's
+// `__builtin___clear_cache` into a call to that symbol. Without a definition
+// here the library keeps it as UND and `dlopen` fails outright with
+// `cannot locate symbol "__clear_cache"`. Flush the range ourselves.
+#[cfg(target_arch = "aarch64")]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn __clear_cache(start: *mut c_void, end: *mut c_void) {
+    // 64 B covers every possible D/I cache line (ARMv8 lines are 16–64 B); the
+    // loop only needs to touch each line once, so a coarser step is harmless.
+    let first = (start as usize) & !63usize;
+    let finish = ((end as usize) + 63) & !63usize;
+    let mut line = first;
+    while line < finish {
+        core::arch::asm!("dc cvau, {addr}", addr = in(reg) line, options(nostack));
+        line += 64;
+    }
+    core::arch::asm!("dsb ish", options(nostack));
+    let mut line = first;
+    while line < finish {
+        core::arch::asm!("ic ivau, {addr}", addr = in(reg) line, options(nostack));
+        line += 64;
+    }
+    core::arch::asm!("dsb ish", "isb", options(nostack));
+}
+
+#[cfg(target_arch = "arm")]
+#[unsafe(no_mangle)]
+unsafe extern "C" fn __clear_cache(start: *mut c_void, end: *mut c_void) {
+    // __ARM_NR_cacheflush: the kernel flushes D then I for the whole range.
+    libc::syscall(0x0f0002, start as usize, end as usize, 0usize);
+}
 
 // `dlsym` default-search pseudo-handle. bionic differs by ABI width.
 #[cfg(target_pointer_width = "64")]
@@ -68,22 +113,27 @@ const RTLD_DEFAULT: *mut c_void = 0xffff_ffff_usize as *mut c_void;
 // Global state
 // ─────────────────────────────────────────────────────────────────────────────
 
-static HOOK_FUNC: OnceLock<RawHook> = OnceLock::new();
-static UNHOOK_FUNC: OnceLock<RawUnhook> = OnceLock::new();
 
 /// Master gate. Even while trampolines are installed, every replacement
 /// tail-calls the original when this is false.
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
+/// Set by the crash handler while it unwinds. `_Unwind_Backtrace` resolves FDEs
+/// through `dl_iterate_phdr`; filtering this library out of that enumeration
+/// makes the unwinder unable to step through its own frames, which produced an
+/// empty "Stack Trace" section in crash reports. While a report is being
+/// written the process is already dying, so expose the real link map.
+pub(crate) static DL_ITERATE_UNFILTERED: AtomicBool = AtomicBool::new(false);
+
 struct HookState {
     installed: bool,
-    /// Addresses of the hooked functions, for `unhook_func` on disable.
-    targets: Vec<usize>,
+    /// Stubs returned by ShadowHook, for `shadowhook_unhook` on disable.
+    stubs: Vec<usize>,
 }
 
 static STATE: Mutex<HookState> = Mutex::new(HookState {
     installed: false,
-    targets: Vec::new(),
+    stubs: Vec::new(),
 });
 
 /// Dynamic tokens to hide (module package name, data dir, …), fed from Java.
@@ -185,14 +235,23 @@ fn proc_sensitive(path: &[u8]) -> bool {
         && (path.ends_with(b"/maps") || path.ends_with(b"/smaps") || path.ends_with(b"/status"))
 }
 
-fn set_enoent() {
-    unsafe { *__errno() = libc::ENOENT };
-}
-
 /// Consume a real fd for a procfs file, produce a sanitized `memfd` fd.
-/// Closes `real`. Returns -1 on failure (caller should fall back).
+///
+/// On success `real` is closed and the sanitized `memfd` is returned, positioned
+/// at offset 0. On any failure `real` is left open and rewound, so the caller
+/// can transparently fall back to the unsanitized file instead of handing the
+/// app a closed descriptor.
 unsafe fn build_sanitized(real: c_int) -> c_int {
     unsafe {
+        let fd = libc::syscall(
+            libc::SYS_memfd_create,
+            c"wk".as_ptr(),
+            libc::MFD_CLOEXEC as c_ulong,
+        ) as c_int;
+        if fd < 0 {
+            return real;
+        }
+
         let mut buf: Vec<u8> = Vec::new();
         let mut tmp = [0u8; 8192];
         loop {
@@ -202,7 +261,6 @@ unsafe fn build_sanitized(real: c_int) -> c_int {
             }
             buf.extend_from_slice(&tmp[..n as usize]);
         }
-        libc::close(real);
 
         let mut out: Vec<u8> = Vec::with_capacity(buf.len());
         for line in buf.split_inclusive(|&b| b == b'\n') {
@@ -216,23 +274,19 @@ unsafe fn build_sanitized(real: c_int) -> c_int {
             out.extend_from_slice(line);
         }
 
-        let fd = libc::syscall(
-            libc::SYS_memfd_create,
-            c"wk".as_ptr(),
-            libc::MFD_CLOEXEC as c_ulong,
-        ) as c_int;
-        if fd < 0 {
-            return -1;
-        }
-
         let mut off = 0usize;
         while off < out.len() {
             let n = libc::write(fd, out.as_ptr().add(off) as *const c_void, out.len() - off);
             if n <= 0 {
-                break;
+                // Partial write: discard the memfd and reuse the original file.
+                libc::close(fd);
+                libc::lseek(real, 0, libc::SEEK_SET);
+                return real;
             }
             off += n as usize;
         }
+
+        libc::close(real);
         libc::lseek(fd, 0, libc::SEEK_SET);
         fd
     }
@@ -255,11 +309,7 @@ unsafe extern "C" fn my_openat(
             && proc_sensitive(CStr::from_ptr(path).to_bytes())
         {
             let real = orig(dirfd, path, flags, mode);
-            if real >= 0 {
-                let fd = build_sanitized(real);
-                return if fd >= 0 { fd } else { -1 };
-            }
-            return real;
+            return if real >= 0 { build_sanitized(real) } else { real };
         }
         orig(dirfd, path, flags, mode)
     }
@@ -273,11 +323,7 @@ unsafe extern "C" fn my_open(path: *const c_char, flags: c_int, mode: c_int) -> 
             && proc_sensitive(CStr::from_ptr(path).to_bytes())
         {
             let real = orig(path, flags, mode);
-            if real >= 0 {
-                let fd = build_sanitized(real);
-                return if fd >= 0 { fd } else { -1 };
-            }
-            return real;
+            return if real >= 0 { build_sanitized(real) } else { real };
         }
         orig(path, flags, mode)
     }
@@ -290,11 +336,7 @@ unsafe extern "C" fn my_open64(path: *const c_char, flags: c_int, mode: c_int) -
             let bytes = CStr::from_ptr(path).to_bytes();
             if proc_sensitive(bytes) {
                 let real = orig(path, flags, mode);
-                if real >= 0 {
-                    let fd = build_sanitized(real);
-                    return if fd >= 0 { fd } else { -1 };
-                }
-                return real;
+                return if real >= 0 { build_sanitized(real) } else { real };
             }
         }
         orig(path, flags, mode)
@@ -304,7 +346,7 @@ unsafe extern "C" fn my_open64(path: *const c_char, flags: c_int, mode: c_int) -
 unsafe extern "C" fn my_prop_get(name: *const c_char, value: *mut c_char) -> c_int {
     unsafe {
         let orig: PropGetFn = transmute(ORIG_PROP_GET.load(Ordering::Acquire));
-        if ENABLED.load(Ordering::Acquire) && !name.is_null() {
+        if ENABLED.load(Ordering::Acquire) && !name.is_null() && !value.is_null() {
             let n = CStr::from_ptr(name).to_bytes();
             let spoof: Option<&[u8]> = if n == b"ro.debuggable" {
                 Some(b"0")
@@ -373,7 +415,7 @@ unsafe extern "C" fn dl_proxy_cb(
 unsafe extern "C" fn my_dl_iterate_phdr(cb: Option<DlCbRaw>, data: *mut c_void) -> c_int {
     unsafe {
         let orig: DlIterFn = transmute(ORIG_DL_ITER.load(Ordering::Acquire));
-        if !ENABLED.load(Ordering::Acquire) {
+        if !ENABLED.load(Ordering::Acquire) || DL_ITERATE_UNFILTERED.load(Ordering::Acquire) {
             return orig(cb, data);
         }
         let mut proxy = DlProxy { cb, data };
@@ -400,15 +442,11 @@ unsafe extern "C" fn my_syscall(
                     let bytes = CStr::from_ptr(path).to_bytes();
                     if proc_sensitive(bytes) {
                         let real = orig(num, a, b, c, d, e, f) as c_int;
-                        if real >= 0 {
-                            let fd = build_sanitized(real);
-                            return if fd >= 0 {
-                                fd as c_long
-                            } else {
-                                real as c_long
-                            };
-                        }
-                        return real as c_long;
+                        return if real >= 0 {
+                            build_sanitized(real) as c_long
+                        } else {
+                            real as c_long
+                        };
                     }
                 }
             } else if num == libc::SYS_ptrace && a as i64 == libc::PTRACE_TRACEME as i64 {
@@ -424,11 +462,10 @@ unsafe extern "C" fn my_syscall(
 // ─────────────────────────────────────────────────────────────────────────────
 
 unsafe fn hook_one(
-    hook: RawHook,
     sym: &CStr,
     replace: *mut c_void,
     backup: &AtomicUsize,
-    targets: &mut Vec<usize>,
+    stubs: &mut Vec<usize>,
 ) {
     unsafe {
         let target = libc::dlsym(RTLD_DEFAULT, sym.as_ptr());
@@ -436,16 +473,27 @@ unsafe fn hook_one(
             logw!("anti-detect: symbol not found: {:?}", sym);
             return;
         }
-        let mut b: *mut c_void = ptr::null_mut();
-        hook(target, replace, &mut b);
-        if b.is_null() {
-            // Common & harmless: aliased symbols (e.g. open64 == open in bionic)
-            // resolve to an already-hooked address, so the second hook no-ops.
-            logw!("anti-detect: hook skipped (no backup): {:?}", sym);
+        // Hand ShadowHook our static slot directly: it stores the trampoline
+        // before switching the entry over, so a thread that lands in the
+        // replacement mid-install never reads a null `orig`.
+        let stub = shadowhook_hook_sym_addr(
+            target,
+            replace,
+            backup.as_ptr() as *mut *mut c_void,
+        );
+        if stub.is_null() {
+            let errno = shadowhook_get_errno();
+            // bionic implements `open` and `open64` (and similar pairs) as the
+            // same function, so the second hook lands on an address that is
+            // already redirected; the first replacement covers both names.
+            if errno == SHADOWHOOK_ERRNO_HOOK_UNIQUE_DUP {
+                logi!("anti-detect: {:?} already hooked at the same address", sym);
+                return;
+            }
+            logw!("anti-detect: shadowhook failed for {:?} (errno {})", sym, errno);
             return;
         }
-        backup.store(b as usize, Ordering::Release);
-        targets.push(target as usize);
+        stubs.push(stub as usize);
     }
 }
 
@@ -456,14 +504,28 @@ fn set_module_tokens(tokens: Vec<Vec<u8>>) {
     }
 }
 
+/// 由 Java 层直接调用：写入要隐藏的 token 并立刻安装钩子。
+///
+/// 存在的意义是「一次生效」：flag 文件只在 `native_init`（早于任何 Java 代码）
+/// 被读取，用户首次安装/升级模块的那次启动读不到 flag。Java 侧在功能启动时
+/// 调这里，就能在当次启动补齐安装，不必等下次重启微信。
+pub fn enable_from_java(tokens: Vec<Vec<u8>>) -> bool {
+    set_module_tokens(tokens);
+    install_hooks()
+}
+
+/// 由 Java 层直接调用：运行期关闭。
+///
+/// 不卸载 ShadowHook 的 trampoline（卸载有并发风险），只关总开关 —— 所有替换
+/// 函数在 `ENABLED == false` 时都会原样尾调原始实现，效果等同未安装。
+pub fn disable_from_java() {
+    ENABLED.store(false, Ordering::Release);
+    logi!("anti-detect: disabled at runtime");
+}
+
 /// Install the anti-detection hooks (idempotent). Returns false if the native
 /// hook primitive was never handed to us by the framework.
 fn install_hooks() -> bool {
-    let Some(&hook) = HOOK_FUNC.get() else {
-        loge!("anti-detect: hook_func unavailable (native API not active)");
-        return false;
-    };
-
     let mut st = match STATE.lock() {
         Ok(s) => s,
         Err(_) => return false,
@@ -475,63 +537,54 @@ fn install_hooks() -> bool {
     }
 
     unsafe {
+        let init_errno = shadowhook_init(SHADOWHOOK_MODE_UNIQUE, false);
+        if init_errno != 0 {
+            loge!("anti-detect: shadowhook init failed (errno {init_errno})");
+            return false;
+        }
+
         hook_one(
-            hook,
             c"openat",
             my_openat as *mut c_void,
             &ORIG_OPENAT,
-            &mut st.targets,
+            &mut st.stubs,
         );
+        hook_one(c"open", my_open as *mut c_void, &ORIG_OPEN, &mut st.stubs);
         hook_one(
-            hook,
-            c"open",
-            my_open as *mut c_void,
-            &ORIG_OPEN,
-            &mut st.targets,
-        );
-        hook_one(
-            hook,
             c"open64",
             my_open64 as *mut c_void,
             &ORIG_OPEN64,
-            &mut st.targets,
+            &mut st.stubs,
         );
         hook_one(
-            hook,
             c"__system_property_get",
             my_prop_get as *mut c_void,
             &ORIG_PROP_GET,
-            &mut st.targets,
+            &mut st.stubs,
         );
         hook_one(
-            hook,
             c"dl_iterate_phdr",
             my_dl_iterate_phdr as *mut c_void,
             &ORIG_DL_ITER,
-            &mut st.targets,
+            &mut st.stubs,
         );
         hook_one(
-            hook,
             c"ptrace",
             my_ptrace as *mut c_void,
             &ORIG_PTRACE,
-            &mut st.targets,
+            &mut st.stubs,
         );
         hook_one(
-            hook,
             c"syscall",
             my_syscall as *mut c_void,
             &ORIG_SYSCALL,
-            &mut st.targets,
+            &mut st.stubs,
         );
     }
 
     st.installed = true;
     ENABLED.store(true, Ordering::Release);
-    logi!(
-        "anti-detect: hooks installed ({} symbols)",
-        st.targets.len()
-    );
+    logi!("anti-detect: hooks installed ({} symbols)", st.stubs.len());
     true
 }
 
@@ -541,17 +594,21 @@ fn install_hooks() -> bool {
 
 /// Path of the on-disk flag that the Java feature writes to request the hooks.
 ///
-/// Must match `NativeAntiDetection.FLAG_FILE` on the Kotlin side:
-/// `/storage/emulated/0/Android/data/<host-pkg>/WeKit/native_anti_detection_enabled.flag`
+/// Must match `NativeAntiDetection.flagFile` on the Kotlin side:
+/// `/storage/emulated/0/Android/data/<host-pkg>/zhiyou/native_anti_detection_enabled.flag`
 /// where `<host-pkg>` is the WeChat process we are running inside.
 fn flag_file_path() -> Option<std::path::PathBuf> {
     // We are injected into the host (WeChat) process, so its own package name
     // is the current package. Read it from the app data dir the runtime exposes.
+    //
+    // "zhiyou" must stay in sync with NativeAntiDetection on the Kotlin side:
+    // changing either one without rebuilding the .so makes the flag invisible to
+    // the native layer, and a missing flag means no hook is installed at all.
     let pkg = current_package_name()?;
     Some(
         std::path::Path::new("/storage/emulated/0/Android/data")
             .join(&pkg)
-            .join("WeKit")
+            .join("zhiyou")
             .join("native_anti_detection_enabled.flag"),
     )
 }
@@ -591,26 +648,18 @@ fn read_flag_tokens() -> Option<Vec<Vec<u8>>> {
 // LSPosed native-API entry point
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Called by the LSPosed native API the moment `libwekit_native.so` is loaded
-/// into the host process — before WeChat runs its own anti-tamper checks.
+/// 所有 hook 的安装入口之一：模块原生库被框架加载时自动调用。
 ///
-/// All hook installation happens here (never later from Java): if the flag file
-/// exists we read the module tokens from it and install the libc/libdl hooks
-/// immediately. Toggling the feature from Java only creates/removes the flag,
-/// so enabling or disabling anti-detection takes effect on the next launch.
+/// 这里只做「上一轮已开启」的恢复：flag 文件存在就读取 token 并立刻安装，
+/// 保证微信反篡改扫描开始之前钩子已经就位。用户在本次运行中开启功能时，
+/// Java 层会走 `NativeAntiDetection.nativeEnable`（见 [enable_from_java]）
+/// 立即安装，不必等到下次启动；持续开启的持久化仍靠 flag 文件。
+///
+/// The `entries` argument is no longer used: hooking goes through ShadowHook,
+/// which is compiled into this library, instead of the framework's lsplant
+/// based `hook_func` (which cannot hook non-ART symbols).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn native_init(entries: *const NativeAPIEntries) -> NativeOnModuleLoaded {
-    unsafe {
-        if !entries.is_null() {
-            if let Some(hook) = (*entries).hook_func {
-                let _ = HOOK_FUNC.set(hook);
-            }
-            if let Some(unhook) = (*entries).unhook_func {
-                let _ = UNHOOK_FUNC.set(unhook);
-            }
-        }
-    }
-
+pub unsafe extern "C" fn native_init(_entries: *const NativeAPIEntries) -> NativeOnModuleLoaded {
     match read_flag_tokens() {
         Some(tokens) => {
             logi!(

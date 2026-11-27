@@ -22,7 +22,7 @@ object NativeCrashHandler {
      */
     fun install(): Boolean {
         if (isInstalled) {
-            WeLogger.i(TAG, "native crash handler already installed")
+            WeLogger.d(TAG, "native crash handler already installed")
             return true
         }
 
@@ -56,7 +56,7 @@ object NativeCrashHandler {
         try {
             uninstallNative()
             isInstalled = false
-            WeLogger.i(TAG, "native crash handler uninstalled")
+            WeLogger.d(TAG, "native crash handler uninstalled")
         } catch (e: Throwable) {
             WeLogger.e(TAG, "failed to uninstall native crash handler", e)
         }

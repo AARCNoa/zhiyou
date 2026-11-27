@@ -51,6 +51,8 @@ import com.AARCNoa.zhiyou.utils.android.showToast
 import com.AARCNoa.zhiyou.utils.fs.KnownPaths
 import com.AARCNoa.zhiyou.utils.reflection.BInt
 import kotlin.io.path.div
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Feature(
     name = "虚拟视频通话", categories = ["音视频通话"],
@@ -113,44 +115,44 @@ object VirtualVoipVideo : ClickableFeature(), IResolveDex {
     private val isVideoPortrait: Boolean
         get() {
             val orientation = streamOrientation
-            if (sourceType == "stream") {
-                return orientation != "landscape"
-            }
-
+            if (sourceType == "stream") return orientation != "landscape"
             if (orientation == "portrait") return true
             if (orientation == "landscape") return false
-
-            val file = VIDEO_PATH.toFile()
-            if (!file.exists()) return false
-
-            val currentKey = "${file.absolutePath}_${file.lastModified()}_${file.length()}"
-            if (lastCheckedKey == currentKey) {
-                return isVideoPortraitCached
-            }
-
-            val retriever = MediaMetadataRetriever()
-            try {
-                retriever.setDataSource(file.absolutePath)
-                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
-                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
-                val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
-
-                val realWidth = if (rotation == 90 || rotation == 270) height else width
-                val realHeight = if (rotation == 90 || rotation == 270) width else height
-
-                isVideoPortraitCached = realWidth < realHeight
-                WeLogger.d(TAG, "video check: width=$width, height=$height, rotation=$rotation -> isPortrait=$isVideoPortraitCached")
-            } catch (e: Exception) {
-                WeLogger.e(TAG, "failed to parse video orientation metadata", e)
-                isVideoPortraitCached = false
-            } finally {
-                runCatching { retriever.release() }
-            }
-            lastCheckedKey = currentKey
+            // 文件元数据在导入和功能启用时于 IO 线程刷新，相机 Hook 只读缓存。
             return isVideoPortraitCached
         }
 
+    private fun refreshVideoOrientationCache() {
+        val file = VIDEO_PATH.toFile()
+        if (!file.exists()) {
+            isVideoPortraitCached = false
+            lastCheckedKey = null
+            return
+        }
+        val currentKey = "${file.absolutePath}_${file.lastModified()}_${file.length()}"
+        if (lastCheckedKey == currentKey) return
+
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            val realWidth = if (rotation == 90 || rotation == 270) height else width
+            val realHeight = if (rotation == 90 || rotation == 270) width else height
+            isVideoPortraitCached = realWidth < realHeight
+            WeLogger.d(TAG, "video check: width=$width, height=$height, rotation=$rotation -> isPortrait=$isVideoPortraitCached")
+        } catch (e: Exception) {
+            WeLogger.e(TAG, "failed to parse video orientation metadata", e)
+            isVideoPortraitCached = false
+        } finally {
+            runCatching { retriever.release() }
+        }
+        lastCheckedKey = currentKey
+    }
+
     override fun onEnable() {
+        featureLaunch { refreshVideoOrientationCache() }
         methodStartCamera.hookBefore {
             isVoipUiActive = true
             WeLogger.d(TAG, "entered voip ui: MicroMsg.ILinkVoIPCameraHelper")
@@ -335,18 +337,28 @@ object VirtualVoipVideo : ClickableFeature(), IResolveDex {
                                             finish()
                                             if (uri == null) return@registerForActivityResult
 
-                                            contentResolver.openInputStream(uri)?.use { input ->
-                                                VIDEO_PATH.toFile().outputStream().use { output ->
-                                                    input.copyTo(output)
+                                            featureLaunch {
+                                                val imported = runCatching {
+                                                    val input = contentResolver.openInputStream(uri)
+                                                        ?: throw IllegalStateException("failed to open input stream")
+                                                    input.use {
+                                                        VIDEO_PATH.toFile().outputStream().use { output ->
+                                                            it.copyTo(output)
+                                                        }
+                                                    }
+                                                    refreshVideoOrientationCache()
+                                                }.onFailure {
+                                                    WeLogger.e(TAG, "failed to import video", it)
+                                                }.isSuccess
+                                                withContext(Dispatchers.Main) {
+                                                    if (imported) {
+                                                        fileExists = true
+                                                        showToast(context, "视频文件导入成功")
+                                                    } else {
+                                                        showToast(context, "视频文件导入失败!")
+                                                    }
                                                 }
-                                            } ?: run {
-                                                WeLogger.e(TAG, "failed to open input stream")
-                                                showToast(context, "视频文件打开失败!")
-                                                return@registerForActivityResult
                                             }
-
-                                            fileExists = true
-                                            showToast(context, "视频文件导入成功")
                                         }
 
                                         selMediaLauncher.launch(

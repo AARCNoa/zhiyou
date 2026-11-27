@@ -53,23 +53,6 @@ object AiConfig {
     const val KEY_THINKING = "ai_global_thinking"
 
     /**
-     * 思考强度。id 直接作为 `reasoning_effort` 下发，四档与 OpenAI 的取值一致
-     * （low / medium / high / max）。
-     *
-     * 存 id 而不是序号：序号会随枚举增删错位。
-     */
-    enum class ThinkingLevel(val id: String, val label: String) {
-        LOW("low", "低"),
-        MEDIUM("medium", "中"),
-        HIGH("high", "高"),
-        MAX("max", "极限");
-
-        companion object {
-            fun of(id: String?): ThinkingLevel = values().firstOrNull { it.id == id } ?: HIGH
-        }
-    }
-
-    /**
      * 输出上限与说话温度。
      *
      * `max_tokens` 默认给一个很大的值（393216）：它只是把服务商的默认上限抬高，不会让请求变贵；
@@ -82,7 +65,6 @@ object AiConfig {
      */
     const val KEY_MAX_TOKENS = "ai_global_max_tokens_v2"
     const val KEY_TEMPERATURE = "ai_global_temperature"
-    const val KEY_THINKING_EFFORT = "ai_global_thinking_effort"
 
     /**
      * 是否把聊天里的图片传给模型。
@@ -99,8 +81,8 @@ object AiConfig {
     /** 默认温度：0.9，句子更活络，贴近日常说话。 */
     const val DEFAULT_TEMPERATURE = 0.9
 
-    /** 默认思考强度：高。 */
-    const val DEFAULT_THINKING_EFFORT = "high"
+    /** 思考强度固定为低，不再读取或保存用户选项。 */
+    private const val THINKING_EFFORT = "low"
 
     /**
      * 双击提示音：开关 + 音色。
@@ -243,23 +225,7 @@ object AiConfig {
         runCatching { WePrefs.putBool(KEY_THINKING, enabled) }
             .onFailure { WeLogger.e(TAG, "save thinking failed", it) }
         refreshStatus()
-        WeLogger.i(TAG, "深度思考 -> ${if (enabled) "开 · ${thinkingLevel.id}" else "关"}")
-    }
-
-    /** 思考强度。只在思考打开时下发；服务商不认这个取值时 [chatWithTools] 会去掉它重试。 */
-    val thinkingLevel: ThinkingLevel
-        get() {
-            if (!prefsAvailable) return ThinkingLevel.of(DEFAULT_THINKING_EFFORT)
-            val saved = runCatching { WePrefs.getStringOrDef(KEY_THINKING_EFFORT, "") }
-                .getOrDefault("")
-            return ThinkingLevel.of(saved.ifBlank { DEFAULT_THINKING_EFFORT })
-        }
-
-    fun setThinkingLevel(level: ThinkingLevel) {
-        if (!prefsAvailable) return
-        runCatching { WePrefs.putString(KEY_THINKING_EFFORT, level.id) }
-            .onFailure { WeLogger.e(TAG, "save thinking level failed", it) }
-        WeLogger.i(TAG, "思考强度 -> ${level.id}（${level.label}）")
+        WeLogger.i(TAG, "深度思考 -> ${if (enabled) "开 · $THINKING_EFFORT" else "关"}")
     }
 
     /**
@@ -838,13 +804,12 @@ object AiConfig {
         // 降级只影响本次请求，不改用户的开关值 —— 换个支持的服务商下次照样开着。
         // 最后一档不带 max_tokens：服务商不认这个参数或嫌它太大时，链路仍能跑完。
         val useThinking = thinking ?: isThinkingEnabled
-        val level = thinkingLevel
         val tokens = maxTokens
         val plans = buildList {
             if (useThinking) {
-                add(RequestPlan(thinking = true, effort = level, maxTokens = tokens))
+                add(RequestPlan(thinking = true, effort = THINKING_EFFORT, maxTokens = tokens))
                 add(RequestPlan(thinking = true, effort = null, maxTokens = tokens))
-                add(RequestPlan(thinking = false, effort = level, maxTokens = tokens))
+                add(RequestPlan(thinking = false, effort = THINKING_EFFORT, maxTokens = tokens))
                 add(RequestPlan(thinking = false, effort = null, maxTokens = tokens))
             } else {
                 add(RequestPlan(thinking = false, effort = null, maxTokens = tokens))
@@ -857,7 +822,7 @@ object AiConfig {
         WeLogger.d(
             TAG,
             "请求 $model temperature=$effectiveTemperature " +
-                "thinking=" + (if (useThinking) level.id else "关") +
+                "thinking=" + (if (useThinking) THINKING_EFFORT else "关") +
                 " max_tokens=$tokens tools=${tools?.size ?: 0}",
         )
 
@@ -879,7 +844,11 @@ object AiConfig {
             } catch (error: Exception) {
                 val message = networkErrorText(error, timeoutSeconds)
                 WeLogger.e(TAG, "chat failed", error)
-                if (affectStatus) markInactive(message)
+                // 只有「配置根本不可用」才值得推翻「已激活」：DNS 解析不了通常意味着
+                // URL 写错或网络彻底不通。连接中断、超时、握手失败都是瞬时故障 ——
+                // WiFi/数据切换、服务端重启都会走到这里，一次抖动不该把所有 AI 功能
+                // 一起标成未激活。
+                if (affectStatus && error is java.net.UnknownHostException) markInactive(message)
                 return ChatResult(null, message)
             }
             lastCode = http.code
@@ -940,7 +909,7 @@ object AiConfig {
      */
     private data class RequestPlan(
         val thinking: Boolean,
-        val effort: ThinkingLevel?,
+        val effort: String?,
         val maxTokens: Int,
     )
 
@@ -977,7 +946,7 @@ object AiConfig {
         temperature: Double,
         maxTokens: Int,
         thinking: Boolean,
-        effort: ThinkingLevel?,
+        effort: String?,
     ): String = buildJsonObject {
         put("model", model)
         put("messages", buildJsonArray {
@@ -1035,7 +1004,7 @@ object AiConfig {
             put("thinking", buildJsonObject { put("type", "enabled") })
         }
         // 独立下发：`thinking=false` 但带 reasoning_effort 是 OpenAI 系的唯一可用形态。
-        effort?.let { put("reasoning_effort", it.id) }
+        effort?.let { put("reasoning_effort", it) }
     }.toString()
 
     private class HttpResponse(val code: Int, val body: String)

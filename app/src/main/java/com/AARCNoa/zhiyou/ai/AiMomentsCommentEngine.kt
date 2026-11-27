@@ -255,7 +255,7 @@ object AiMomentsCommentEngine {
             appendLine("- 你对这位好友有了解（材料在下面）。评论要贴着你们的关系和你知道的事，")
             appendLine("  但不要把档案里的信息直接说出来，也不要提「标签」「档案」这些词。")
         }
-        append("只输出一行 JSON，不要代码块、不要解释：{\"replies\":[\"…\",\"…\",\"…\"]}")
+        // 输出格式不在这里：放在 user 末尾（见 [userPrompt]），那是模型动笔前最后读到的位置。
     }
 
     private fun userPrompt(post: Post, authorName: String, profileBlock: String, attached: Int): String =
@@ -280,6 +280,11 @@ object AiMomentsCommentEngine {
                 appendLine()
                 append(profileBlock)
             }
+            // 输出格式放在 user 末尾：这是模型动笔前最后读到的位置（与智能推荐同一策略）。
+            appendLine()
+            appendLine("输出格式（严格遵守）：只输出一行 JSON，这就是你回复的全部内容。")
+            appendLine("第一个字符是 {，最后一个字符是 }，所有括号都要闭合；} 之后不再有任何字符，")
+            append("不要代码块、不要解释。字段只有 replies，里面是三条：{\"replies\":[\"…\",\"…\",\"…\"]}")
         }
 
     /**

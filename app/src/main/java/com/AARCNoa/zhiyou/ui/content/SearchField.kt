@@ -1,9 +1,12 @@
 package com.AARCNoa.zhiyou.ui.content
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -26,11 +29,19 @@ fun SearchField(
     modifier: Modifier = Modifier,
     label: String = "搜索",
     closeDescription: String = "清除",
+    onSearch: (() -> Unit)? = null,
 ) {
     TextField(
         state = state,
         modifier = modifier,
         label = label,
+        keyboardOptions = if (onSearch == null) KeyboardOptions.Default else KeyboardOptions(imeAction = ImeAction.Search),
+        onKeyboardAction = onSearch?.let { action ->
+            KeyboardActionHandler { performDefault ->
+                action()
+                performDefault()
+            }
+        },
         leadingIcon = {
             Icon(
                 imageVector = OutlinedIcons.Search,

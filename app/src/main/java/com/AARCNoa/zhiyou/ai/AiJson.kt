@@ -1,5 +1,6 @@
 package com.AARCNoa.zhiyou.ai
 
+import com.AARCNoa.zhiyou.utils.WeLogger
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -14,9 +15,11 @@ import kotlinx.serialization.json.jsonPrimitive
  *
  * 四类调用点（建议 / 今日总结 / 群总结 / 朋友圈评论）原先各写一份，容错细节还不一致 ——
  * 有的只剥小写 ` ```json `，模型真返回 ` ```JSON ` 时就当成非 JSON 走了兜底。
- * 这里统一三步：原文 → 剥围栏 → 截首尾花括号，谁先能解析成对象就用谁。
+ * 这里统一四步：原文 → 剥围栏 → 截首尾花括号 → 补全缺失的闭合括号，谁先能解析成对象就用谁。
  */
 internal object AiJson {
+
+    private const val TAG = "AiJson"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -25,7 +28,7 @@ internal object AiJson {
         .removePrefix("```json").removePrefix("```JSON").removePrefix("```")
         .removeSuffix("```").trim()
 
-    /** 解析候选：原文 → 剥围栏 → 首尾花括号之间。顺序即优先级，模型多包一层时靠后两条兜底。 */
+    /** 解析候选：原文 → 剥围栏 → 首尾花括号之间 → 补闭合括号。顺序即优先级，模型多包一层时靠后面几条兜底。 */
     fun candidates(raw: String): List<String> = buildList {
         add(raw)
         val stripped = stripFence(raw)
@@ -33,6 +36,47 @@ internal object AiJson {
         val start = raw.indexOf('{')
         val end = raw.lastIndexOf('}')
         if (start in 0 until end) add(raw.substring(start, end + 1))
+        closeDangling(stripped)?.let(::add)
+    }
+
+    /**
+     * 补全缺失的闭合括号。
+     *
+     * 针对 `finish_reason=stop` 但 JSON 没写完的情况：模型认为说完了，内容是完整的，
+     * 只是漏了末尾的 `}`/`]`。只补「还开着的括号」，且要求结尾不在字符串里 ——
+     * 停在字符串中间说明缺的是内容而不是括号，补了也是编造。
+     * 结尾多出的逗号一并去掉，否则补完还是不合法。
+     */
+    fun closeDangling(raw: String): String? {
+        val start = raw.indexOf('{')
+        if (start < 0) return null
+        val body = raw.substring(start).trimEnd()
+        val open = ArrayDeque<Char>()
+        var inString = false
+        var escaped = false
+        for (ch in body) {
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    ch == '\\' -> escaped = true
+                    ch == '"' -> inString = false
+                }
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '{' -> open.addLast('}')
+                '[' -> open.addLast(']')
+                // 括号对不上（如 `]{`）不是「漏了闭合」，交给调用方兜底。
+                '}', ']' -> if (open.removeLastOrNull() != ch) return null
+            }
+        }
+        if (inString || open.isEmpty()) return null
+        WeLogger.d(TAG, "输出缺少闭合括号，已补全：$open")
+        return buildString {
+            append(body.removeSuffix(",").trimEnd())
+            while (open.isNotEmpty()) append(open.removeLast())
+        }
     }
 
     /** 第一个能解析成对象的候选；全都不是 JSON 时返回 null，调用方自己决定用什么兜底。 */

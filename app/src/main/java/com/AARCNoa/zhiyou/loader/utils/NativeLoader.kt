@@ -11,7 +11,7 @@ object NativeLoader {
 
     init {
         System.loadLibrary("dexkit")
-        System.loadLibrary("wekit_native")
+        System.loadLibrary("zhiyou_native")
     }
 
     fun init(hostCtx: Context) {

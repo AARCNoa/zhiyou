@@ -60,7 +60,6 @@ fun AiConfigDialogContent(
     var key by remember { mutableStateOf(AiConfig.rawApiKey) }
     var model by remember { mutableStateOf(AiConfig.rawModel.ifBlank { AiConfig.DEFAULT_MODEL }) }
     var thinking by remember { mutableStateOf(AiConfig.status.thinking) }
-    var thinkingLevel by remember { mutableStateOf(AiConfig.thinkingLevel) }
     // 输出上限与温度是即时生效的请求参数，不参与「配置齐全」判定，也不需要重新校验接口。
     var advanced by remember { mutableStateOf(false) }
     var maxTokens by remember { mutableStateOf(AiConfig.maxTokens.toString()) }
@@ -180,7 +179,7 @@ fun AiConfigDialogContent(
                             color = WxPalette.textPrimary(),
                         )
                         Text(
-                            text = if (thinking) "已开启 · ${thinkingLevel.label}，更慢、消耗更多" else "关闭",
+                            text = if (thinking) "已开启 · 低强度，更慢、消耗更多" else "关闭",
                             style = MaterialTheme.typography.bodySmall,
                             color = WxPalette.textSecondary(),
                         )
@@ -194,8 +193,8 @@ fun AiConfigDialogContent(
                     )
                 }
 
-                // ── 高级：思考强度 / 输出上限 / 温度 ──
-                // 都有合理默认值（高 / 393216 / 0.9），摆在正文里只会让人觉得必须调。
+                // ── 高级：输出上限 / 温度 ──
+                // 都有合理默认值，摆在正文里只会让人觉得必须调。
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -212,11 +211,9 @@ fun AiConfigDialogContent(
                         )
                         Text(
                             text = if (advanced) {
-                                "思考强度 · 输出上限 · 说话温度"
+                                "输出上限 · 说话温度"
                             } else {
-                                // 思考关着时不显示强度：展开后也没有那一项，免得它像是生效的。
-                                (if (thinking) "强度 ${thinkingLevel.label} · " else "") +
-                                    "温度 ${temperature.ifBlank { "0.9" }}"
+                                "温度 ${temperature.ifBlank { "0.9" }}"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = WxPalette.textSecondary(),
@@ -236,32 +233,6 @@ fun AiConfigDialogContent(
                 }
 
                 if (advanced) {
-                    // 思考强度：四档。思考关着时没有强度可调，不显示。
-                    if (thinking) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "思考强度",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = WxPalette.textSecondary(),
-                            )
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                AiConfig.ThinkingLevel.values().forEach { level ->
-                                    FilterChip(
-                                        selected = level == thinkingLevel,
-                                        onClick = {
-                                            thinkingLevel = level
-                                            AiConfig.setThinkingLevel(level)
-                                        },
-                                        label = { Text(level.label) },
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     // 输出上限：思考与工具调用抢同一份输出预算，服务商默认值偏小时
                     // arguments 会被截成半截 JSON。0 = 不传。
                     OutlinedTextField(

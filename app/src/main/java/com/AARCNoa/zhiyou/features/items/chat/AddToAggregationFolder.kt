@@ -1,7 +1,6 @@
 package com.AARCNoa.zhiyou.features.items.chat
 
 import android.content.Context
-import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,70 +9,37 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.AARCNoa.zhiyou.features.api.ui.WeConversationContextMenuApi
-import com.AARCNoa.zhiyou.features.core.ClickableFeature
-import com.AARCNoa.zhiyou.features.core.Feature
 import com.AARCNoa.zhiyou.features.items.chat.ConversationAggregation.FolderChoice
 import com.AARCNoa.zhiyou.preferences.WePrefs.Companion.prefOption
 import com.AARCNoa.zhiyou.ui.content.AlertDialogContent
-import com.AARCNoa.zhiyou.ui.content.Button
 import com.AARCNoa.zhiyou.ui.content.TextButton
 import com.AARCNoa.zhiyou.ui.utils.FolderAddIcon
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.android.showToast
 
-@Feature(
-    name = "添加对话至归拢文件夹",
-    categories = ["聊天"],
-    description = "在首页对话列表长按菜单添加菜单项, 可将该对话加入「对话归拢」的手动文件夹\n需启用「对话归拢」"
-)
-object AddToAggregationFolder : ClickableFeature(), WeConversationContextMenuApi.IMenuItemsProvider {
+/**
+ * 「对话归拢」的首页对话长按菜单项：把该对话加入手动文件夹。
+ *
+ * 不是独立功能：随 [ConversationAggregation] 的开关注册/注销，
+ * 因此开启「对话归拢」后菜单项默认就存在，设置页也不会再出现单独开关。
+ */
+internal object AddToAggregationFolder : WeConversationContextMenuApi.IMenuItemsProvider {
 
-    private var showConfigDialog by prefOption("add_to_folder_show_config_dialog", false)
+    /** 加入文件夹后是否自动打开该文件夹的编辑对话框；在「对话归拢」管理弹窗里配置。 */
+    var showConfigDialog by prefOption("add_to_folder_show_config_dialog", false)
 
-    override fun onEnable() {
+    fun register() {
         WeConversationContextMenuApi.addProvider(this)
     }
 
-    override fun onDisable() {
+    fun unregister() {
         WeConversationContextMenuApi.removeProvider(this)
-    }
-
-    override fun onClick(context: ComponentActivity) {
-        showComposeDialog(context) {
-            var showConfigInput by remember { mutableStateOf(showConfigDialog) }
-            AlertDialogContent(
-                title = { Text("添加对话至归拢文件夹") },
-                text = {
-                    ListItem(
-                        modifier = Modifier.clickable { showConfigInput = !showConfigInput },
-                        trailingContent = {
-                            Switch(checked = showConfigInput, onCheckedChange = null)
-                        },
-                        supportingContent = { Text("将对话加入文件夹后, 自动打开该文件夹的编辑对话框") },
-                        headlineContent = { Text("添加后打开配置对话框") },
-                    )
-                },
-                dismissButton = { TextButton(onDismiss) { Text("取消") } },
-                confirmButton = {
-                    Button({
-                        showConfigDialog = showConfigInput
-                        onDismiss()
-                    }) { Text("确定") }
-                }
-            )
-        }
     }
 
     override fun getMenuItems(): List<WeConversationContextMenuApi.MenuItem> {
@@ -93,11 +59,6 @@ object AddToAggregationFolder : ClickableFeature(), WeConversationContextMenuApi
     }
 
     private fun onMenuClick(context: Context, talker: String) {
-        if (!ConversationAggregation.isEnabled) {
-            showToast(context, "请先启用「对话归拢」!")
-            return
-        }
-
         val folders = ConversationAggregation.aggregationFolders()
         if (folders.isEmpty()) {
             showToast(context, "暂无文件夹, 请先在「对话归拢」中新建一个")

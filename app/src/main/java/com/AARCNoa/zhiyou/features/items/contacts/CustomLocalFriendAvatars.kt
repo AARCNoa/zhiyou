@@ -219,6 +219,38 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
     @Volatile
     private var avatarMapCache: Map<String, String>? = null
 
+    /** 头像渲染 hook 是否已安装（两个功能共用，只装一次）。 */
+    @Volatile
+    private var avatarHooksInstalled = false
+
+    /** 对话归拢是否启用了文件夹头像（由 ConversationAggregation 设置）。 */
+    @Volatile
+    private var folderAvatarActive = false
+
+    /** 判断某个 username 是否是对话归拢的文件夹 id。 */
+    @Volatile
+    private var folderIdPredicate: ((String) -> Boolean)? = null
+
+    /**
+     * 对话归拢启用/停用时调用。
+     *
+     * 传入 folder 判断后，头像 hook 就能区分「文件夹头像」和「好友头像」：
+     * 文件夹 id 只受 [folderAvatarActive] 控制，普通 wxId 只受本功能开关控制。
+     */
+    fun setFolderAvatarSupport(active: Boolean, isFolderId: ((String) -> Boolean)?) {
+        folderAvatarActive = active
+        folderIdPredicate = isFolderId
+    }
+
+    /** 当前 wxId 是否应该走本模块的头像渲染（按归属分别判断，两个功能互不干扰）。 */
+    private fun shouldApplyAvatar(wxId: String): Boolean {
+        return if (folderIdPredicate?.invoke(wxId) == true) {
+            folderAvatarActive
+        } else {
+            isEnabled
+        }
+    }
+
     @Volatile
     var fallbackUsernameProvider: ((String) -> String?)? = null
 
@@ -252,6 +284,22 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
         clearBitmapCaches()
         boundAvatarViews.clear()
 
+        ensureAvatarHooks()
+        WeLogger.i(TAG, "CustomLocalFriendAvatars enabled, avatarMap size=${avatarMap.size}")
+    }
+
+    /**
+     * 安装头像渲染 hook（幂等）。
+     *
+     * 这些 hook 不只服务「自定义好友本地头像」：对话归拢的文件夹头像复用同一套渲染链路。
+     * 因此安装与功能开关解耦，由两个功能任一启用时调用；具体某个 wxId 是否应用头像，
+     * 在 [shouldApplyAvatar] 里按归属分别判断，互不干扰。
+     */
+    @Synchronized
+    fun ensureAvatarHooks() {
+        if (avatarHooksInstalled) return
+        avatarHooksInstalled = true
+
         val hookTargets = listOf(
             "methodConversationAvatar" to methodConversationAvatar,
             "methodMvvmLoadAvatar1" to methodMvvmLoadAvatar1,
@@ -284,6 +332,10 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
                         val imageView = args.getOrNull(0) as? ImageView ?: return@hookBefore
                         val wxId = args.getOrNull(1) as? String ?: return@hookBefore
 
+                        // 文件夹头像归「对话归拢」管，普通好友头像归本功能管：
+                        // 只开其中一个时，另一个不会跟着生效。
+                        if (!shouldApplyAvatar(wxId)) return@hookBefore
+
                         val redirectedId = fallbackUsernameProvider?.invoke(wxId)
                         if (redirectedId != null) {
                             args[1] = redirectedId
@@ -308,13 +360,14 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
                     WeLogger.w(TAG, "failed to hook $name on ${target.name}, avatar loading may be affected", e)
                 }
             }
-            WeLogger.i(TAG, "hook $name set up on ${targets.size} target(s)")
+            WeLogger.d(TAG, "hook $name set up on ${targets.size} target(s)")
         }
 
         if (!methodHdGallerySetUsername.isPlaceholder) {
             try {
                 methodHdGallerySetUsername.hookBefore {
                     val username = args.getOrNull(0) as? String ?: return@hookBefore
+                    if (!shouldApplyAvatar(username)) return@hookBefore
                     val gallery = thisObject
                     if (applyCustomHdAvatar(gallery, username)) {
                         try {
@@ -334,7 +387,7 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
                         }
                     }
                 }
-                WeLogger.i(TAG, "hook methodHdGallerySetUsername set up successfully")
+                WeLogger.d(TAG, "hook methodHdGallerySetUsername set up successfully")
             } catch (e: Exception) {
                 WeLogger.w(TAG, "failed to hook methodHdGallerySetUsername", e)
             }
@@ -342,7 +395,7 @@ object CustomLocalFriendAvatars : ClickableFeature(), IContactInfoProvider, IRes
             WeLogger.w(TAG, "skipping hook methodHdGallerySetUsername: method not found (placeholder)")
         }
 
-        WeLogger.i(TAG, "CustomLocalFriendAvatars enabled, avatarMap size=${avatarMap.size}")
+        WeLogger.i(TAG, "avatar hooks installed (shared by local avatars / folder avatars)")
     }
 
     /**

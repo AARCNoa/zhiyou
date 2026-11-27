@@ -37,8 +37,9 @@ import com.AARCNoa.zhiyou.ui.content.TextButton
 import com.AARCNoa.zhiyou.ui.utils.showComposeDialog
 import com.AARCNoa.zhiyou.utils.WeLogger
 import com.AARCNoa.zhiyou.utils.android.showToast
-import kotlin.concurrent.thread
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 @Feature(name = "自动接收转账", categories = ["红包与支付"], description = "监听消息并自动接收转账")
 object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertListener {
@@ -139,11 +140,11 @@ object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertLi
             customDelay
         }
 
-        thread(name = "AcceptTransferThread") {
+        featureLaunch {
             try {
                 if (delayTime > 0) {
                     WeLogger.i(TAG, "started delaying for ${delayTime}ms")
-                    Thread.sleep(delayTime)
+                    delay(delayTime)
                 }
 
                 WePaymentApi.confirmTransfer(transferMsg.transactionId, transferMsg.transferId, payerUsername, transferMsg.invalidTime)
@@ -154,13 +155,15 @@ object AutoAcceptTransfers : ClickableFeature(), WeDatabaseListenerApi.IInsertLi
                     WeMessageApi.sendText(msgInfo.talker, autoReply.replace($$"$amount", transferMsg.feedesc))
                 }
 
-                if (!transferNotif) return@thread
+                if (!transferNotif) return@featureLaunch
 
                 val displayName = WeDatabaseApi.getDisplayName(payerUsername)
 
                 Handler(Looper.getMainLooper()).post {
                     showToast("收到「${displayName}」的转账 ${transferMsg.feedesc}")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Throwable) {
                 WeLogger.e(TAG, "failed to send accept transfer request", e)
             }

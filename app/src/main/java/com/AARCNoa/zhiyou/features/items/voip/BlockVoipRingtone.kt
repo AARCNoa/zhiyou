@@ -94,13 +94,13 @@ object BlockVoipRingtone : ClickableFeature(), IResolveDex {
         if (!methodStartRing.isPlaceholder) {
             methodStartRing.hookBefore { tryBlockStartRing(this) }
             hooked = true
-            WeLogger.i(TAG, "hook enabled: startRing (VoIPMPRingtoneController)")
+            WeLogger.d(TAG, "hook enabled: startRing (VoIPMPRingtoneController)")
         }
 
         if (!methodSceneSetting.isPlaceholder) {
             methodSceneSetting.hookBefore { tryBlockRingtone(this) }
             hooked = true
-            WeLogger.i(TAG, "hook enabled: sceneSetting (BaseSceneSetting)")
+            WeLogger.d(TAG, "hook enabled: sceneSetting (BaseSceneSetting)")
         } else if (!methodPlaySoundByLog.isPlaceholder) {
             WeLogger.w(TAG, "sceneSetting strict match failed, using log-string fallback")
             // 多候选：把命中的每个入口都挂上（只挂第一个会漏掉另外两个播放路径）
@@ -119,7 +119,7 @@ object BlockVoipRingtone : ClickableFeature(), IResolveDex {
             }
             if (fallbackHooked > 0) {
                 hooked = true
-                WeLogger.i(TAG, "log-string fallback 已 hook $fallbackHooked/${candidates.size} 个候选：${hookedIds.joinToString("、")}")
+                WeLogger.d(TAG, "log-string fallback 已 hook $fallbackHooked/${candidates.size} 个候选：${hookedIds.joinToString("、")}")
             } else {
                 WeLogger.w(TAG, "log-string fallback 无可用候选（候选数=${candidates.size}），未 hook")
             }
@@ -128,7 +128,7 @@ object BlockVoipRingtone : ClickableFeature(), IResolveDex {
         if (!methodIncomingRing.isPlaceholder) {
             methodIncomingRing.hookBefore { tryBlockIncomingRing(this) }
             hooked = true
-            WeLogger.i(TAG, "hook enabled: incoming ring player (ZIDL_HBV)")
+            WeLogger.d(TAG, "hook enabled: incoming ring player (ZIDL_HBV)")
         }
 
         if (!hooked) {
